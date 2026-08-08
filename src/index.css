@@ -1,0 +1,132 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Noto+Naskh+Arabic:wght@400..700&family=Noto+Nastaliq+Urdu:wght@400..700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Scheherazade+New:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Muhammadi Quranic';
+  src: url('https://cdn.jsdelivr.net/gh/mrsunny/urdu-fonts/IndoPak-QuranicFont.woff2') format('woff2'),
+       url('https://fonts.cdnfonts.com/s/72883/Amiri-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jameel Noori Nastaleeq';
+  src: url('https://cdn.jsdelivr.net/gh/mrsunny/urdu-fonts/JameelNooriNastaleeq.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/mrsunny/urdu-fonts/JameelNooriNastaleeq.woff') format('woff'),
+       url('https://fonts.cdnfonts.com/s/72883/JameelNooriNastaleeqKasheeda.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', 'Urdu Typesetting', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif;
+}
+
+html, body, #root {
+  font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', system-ui, sans-serif;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer utilities {
+  .font-quranic {
+    font-family: 'Muhammadi Quranic', 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif;
+  }
+  .font-nastaliq {
+    font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', 'Urdu Typesetting', serif;
+  }
+  .font-english {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Material Design Shimmer Loading Effect */
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 1.8s infinite linear;
+  }
+
+  /* Pulse Glow Animation for Splash & Highlights */
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.4; filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4)); }
+    50% { opacity: 0.9; filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.8)); }
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2.5s infinite ease-in-out;
+  }
+
+  /* Slow Rotate for Islamic Star Crest */
+  @keyframes slowRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .animate-slow-rotate {
+    animation: slowRotate 30s linear infinite;
+  }
+
+  /* Material Ripple Click Effect */
+  .material-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .material-ripple::after {
+    content: "";
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.3) 10%, transparent 10.01%);
+    background-repeat: no-repeat;
+    background-position: 50%;
+    transform: scale(10, 10);
+    opacity: 0;
+    transition: transform 0.4s, opacity 0.8s;
+  }
+
+  .material-ripple:active::after {
+    transform: scale(0, 0);
+    opacity: 0.3;
+    transition: 0s;
+  }
+}
+
+/* Custom Smooth Mobile Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.5);
+}

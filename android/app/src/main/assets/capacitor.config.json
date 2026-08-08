@@ -1,8 +1,0 @@
-{
-	"appId": "com.halqa.usmania",
-	"appName": "Halqa-e-Usmania Official App",
-	"webDir": "dist",
-	"server": {
-		"androidScheme": "https"
-	}
-}

@@ -1,0 +1,10 @@
+{
+  "name": "KhanQah & Aastana - Halqa-e-Usmania",
+  "description": "Official mobile-first spiritual guidance and record management system for Halqa-e-Usmania. Features Abjad Tashkhees engine, day-wise spiritual dataset management, branch-wise slip generation, multi-role user access, and authentic Sufi resources.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

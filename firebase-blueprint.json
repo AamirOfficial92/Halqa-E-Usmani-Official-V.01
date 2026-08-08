@@ -1,0 +1,228 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile & Registrations",
+      "description": "Registered app users, members, and role assignments",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" },
+        "phone": { "type": "string" },
+        "city": { "type": "string" },
+        "branchCode": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["displayName"]
+    },
+    "slips": {
+      "title": "Master Slips Ledger",
+      "description": "Master audit ledger of spiritual guidance slips across all branches",
+      "type": "object",
+      "properties": {
+        "slipNumber": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhone": { "type": "string" },
+        "userCity": { "type": "string" },
+        "branchName": { "type": "string" },
+        "branchCode": { "type": "string" },
+        "amliyatType": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "wazaifDetails": { "type": "string" },
+        "createdDate": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userName"]
+    },
+    "makhzan_e_khas": {
+      "title": "Makhzan-e-Khas Articles",
+      "description": "Special spiritual knowledge posts and articles",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "titleUrdu": { "type": "string" },
+        "category": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "content": { "type": "string" },
+        "contentUrdu": { "type": "string" },
+        "requiresSubscription": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "spiritual_personalities": {
+      "title": "Spiritual Personalities",
+      "description": "Biographies and details of spiritual personalities",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "nameUrdu": { "type": "string" },
+        "title": { "type": "string" },
+        "titleUrdu": { "type": "string" },
+        "biography": { "type": "string" },
+        "biographyUrdu": { "type": "string" },
+        "era": { "type": "string" },
+        "location": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "displayOrder": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "feedback": {
+      "title": "Feedback & Queries",
+      "description": "User feedback messages and admin replies",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "message": { "type": "string" },
+        "reply": { "type": "string" },
+        "repliedAt": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "message"]
+    },
+    "donations": {
+      "title": "Donations Ledger",
+      "description": "Individual donation transactions linked to initiatives",
+      "type": "object",
+      "properties": {
+        "initiativeId": { "type": "string" },
+        "initiativeTitle": { "type": "string" },
+        "donorName": { "type": "string" },
+        "donorPhone": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["donorName", "amount"]
+    },
+    "posts": {
+      "title": "Posts & Articles",
+      "description": "Halqa E Usmania posts and articles",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "titleUrdu": { "type": "string" },
+        "category": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "completeArticle": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "categories": {
+      "title": "Categories",
+      "description": "Content categories",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "nameUrdu": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "videos": {
+      "title": "Videos",
+      "description": "Bayan, Naat and live videos",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "youtubeId": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "pdfs": {
+      "title": "PDF Books",
+      "description": "Islamic books and documents",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "pdfUrl": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "audios": {
+      "title": "Audio Items",
+      "description": "Audios and Bayans",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "audioUrl": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Push and app notifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" }
+      },
+      "required": ["title"]
+    },
+    "info_pages": {
+      "title": "Information Center Pages",
+      "description": "Dynamic CMS pages for Information Center",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "content": { "type": "string" },
+        "status": { "type": "string" },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["title", "slug", "content"]
+    },
+    "post_splash_screens": {
+      "title": "Post Splash Screens",
+      "description": "Darood Pak & Post Splash screen slides displayed after initial splash",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "titleEnglish": { "type": "string" },
+        "bismillahText": { "type": "string" },
+        "mainArabicText": { "type": "string" },
+        "urduTranslation": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "durationSeconds": { "type": "number" },
+        "isEnabled": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "mainArabicText"]
+    },
+    "settings": {
+      "title": "Single-Document Configurations",
+      "description": "Global settings for abjad_engine, voice_reader, and app_config",
+      "type": "object",
+      "properties": {
+        "abjad_engine": { "type": "object" },
+        "voice_reader": { "type": "object" },
+        "app_config": { "type": "object" }
+      }
+    },
+    "stats": {
+      "title": "System Summary Statistics",
+      "description": "Auto-updated real-time aggregation summary stats document",
+      "type": "object",
+      "properties": {
+        "summary": { "type": "object" }
+      }
+    }
+  }
+}

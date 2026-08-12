@@ -433,11 +433,16 @@ export const MakhzanEKhas: React.FC<MakhzanEKhasProps> = ({
 
                     {/* Thumbnail Image if any */}
                     {post.images && post.images.length > 0 && (
-                      <div className="mb-4 rounded-lg overflow-hidden h-36 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <div className="mb-4 rounded-lg overflow-hidden h-36 bg-slate-950 border border-slate-200 dark:border-slate-700 flex items-center justify-center relative">
+                        <img
+                          src={post.images[0]}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none"
+                        />
                         <img
                           src={post.images[0]}
                           alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                         />
                       </div>
                     )}
@@ -588,12 +593,17 @@ export const MakhzanEKhas: React.FC<MakhzanEKhasProps> = ({
                       <div
                         key={index}
                         onClick={() => setLightboxImage(imgUrl)}
-                        className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 cursor-pointer group relative h-48"
+                        className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 cursor-pointer group relative h-48 flex items-center justify-center"
                       >
                         <img
                           src={imgUrl}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none"
+                        />
+                        <img
+                          src={imgUrl}
                           alt={`${selectedPost.title} image ${index + 1}`}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                          className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                         />
                         <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-bold gap-1">
                           <Eye className="w-4 h-4" />

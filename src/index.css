@@ -115,6 +115,11 @@ html, body, #root {
   }
 }
 
+/* Global App Image Aspect Ratio & Non-Crop Rules */
+img {
+  max-width: 100%;
+}
+
 /* Custom Smooth Mobile Scrollbars */
 ::-webkit-scrollbar {
   width: 4px;

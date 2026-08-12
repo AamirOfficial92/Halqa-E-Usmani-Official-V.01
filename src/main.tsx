@@ -1,11 +1,25 @@
-import {StrictMode} from 'react';
+import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
 import './index.css';
+
+const buildTarget = import.meta.env.VITE_BUILD_TARGET;
+
+const RootComponent = buildTarget === 'admin' 
+  ? lazy(() => import('./AdminApp'))
+  : buildTarget === 'mobile'
+  ? lazy(() => import('./MobileApp'))
+  : lazy(() => import('./App'));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Suspense fallback={
+      <div className="bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center p-4 font-serif text-sm">
+        <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p>حلقہ عثمانیہ آفیشل - Loading Application...</p>
+      </div>
+    }>
+      <RootComponent />
+    </Suspense>
   </StrictMode>,
 );
 

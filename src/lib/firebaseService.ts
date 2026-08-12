@@ -1496,6 +1496,13 @@ export const subscribeToPostSplashScreens = (callback: (screens: PostSplashScree
 
 export const savePostSplashScreenToFirestore = async (screen: PostSplashScreenItem): Promise<boolean> => {
   try {
+    if (!auth.currentUser) {
+      try {
+        await firebaseSignInAnonymously();
+      } catch (authErr) {
+        console.warn('[Firestore Auth Warning] Unable to sign in anonymously before save:', authErr);
+      }
+    }
     await setDoc(doc(db, 'post_splash_screens', screen.id), JSON.parse(JSON.stringify(screen)), { merge: true });
     return true;
   } catch (error) {
@@ -1506,6 +1513,13 @@ export const savePostSplashScreenToFirestore = async (screen: PostSplashScreenIt
 
 export const deletePostSplashScreenFromFirestore = async (screenId: string): Promise<boolean> => {
   try {
+    if (!auth.currentUser) {
+      try {
+        await firebaseSignInAnonymously();
+      } catch (authErr) {
+        console.warn('[Firestore Auth Warning] Unable to sign in anonymously before delete:', authErr);
+      }
+    }
     await deleteDoc(doc(db, 'post_splash_screens', screenId));
     return true;
   } catch (error) {

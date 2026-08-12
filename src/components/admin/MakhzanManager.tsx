@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DeleteConfirmModal } from '../DeleteConfirmModal';
+import { GoogleDriveLinkInput } from '../GoogleDriveLinkInput';
 import { 
   FolderHeart, 
   Plus, 
@@ -32,6 +33,7 @@ import {
 } from 'lucide-react';
 import { MakhzanCategory, MakhzanPost, UserRole, Branch } from '../../types';
 import { ImageCropperModal } from './ImageCropperModal';
+import { WysiwygEditor } from './WysiwygEditor';
 
 interface MakhzanManagerProps {
   categories: MakhzanCategory[];
@@ -1059,15 +1061,14 @@ export const MakhzanManager: React.FC<MakhzanManagerProps> = ({
 
               {/* Body Text */}
               <div>
-                <label className="block font-bold mb-1">تفصیلی متن (Body Text) *</label>
-                <textarea
-                  rows={6}
-                  required
+                <WysiwygEditor
+                  label="تفصیلی متن (Body Text / مکمل مضمون و قرآنی آیات)"
+                  value={postForm.bodyText || ''}
+                  onChange={(html) => setPostForm({ ...postForm, bodyText: html })}
                   placeholder="مضمون کا مکمل متن اردو میں درج کریں..."
-                  value={postForm.bodyText}
-                  onChange={(e) => setPostForm({ ...postForm, bodyText: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border p-3 rounded-xl font-urdu focus:outline-none leading-relaxed text-sm"
-                ></textarea>
+                  isUrdu={true}
+                  minHeight="220px"
+                />
               </div>
 
               {/* Images Section (URLs + Upload) */}
@@ -1266,13 +1267,12 @@ export const MakhzanManager: React.FC<MakhzanManagerProps> = ({
 
               {/* PDF Url */}
               <div>
-                <label className="block font-bold mb-1">پی ڈی ایف فائل لنک (PDF Attachment URL)</label>
-                <input
-                  type="text"
-                  placeholder="https://example.com/document.pdf"
+                <GoogleDriveLinkInput
+                  label="پی ڈی ایف فائل لنک (PDF Attachment / Google Drive Link)"
+                  placeholder="Paste Google Drive URL or direct PDF link..."
                   value={postForm.pdfUrl}
-                  onChange={(e) => setPostForm({ ...postForm, pdfUrl: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border p-2.5 rounded-xl focus:outline-none"
+                  onChange={(url, meta) => setPostForm({ ...postForm, pdfUrl: url })}
+                  expectedType="pdf"
                 />
               </div>
 

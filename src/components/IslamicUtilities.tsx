@@ -27,13 +27,23 @@ import {
   BellOff,
   Sliders,
   Maximize2,
-  TrendingUp
+  TrendingUp,
+  WifiOff
 } from 'lucide-react';
 import { PrayerTimeSetting, PrayerTimings, IslamicEvent, DuaItem } from '../types';
 import { initialIslamicEvents, initialDuas } from '../data';
 import { PrayerWidget } from './PrayerWidget';
 import { PrayerTrackerDashboard } from './PrayerTrackerDashboard';
 import { IslamicEventsCalendar } from './IslamicEventsCalendar';
+import { 
+  calculateOfflineQibla, 
+  calculateOfflinePrayerTimes, 
+  savePrayerTimesToOfflineStorage, 
+  getPrayerTimesFromOfflineStorage, 
+  saveQiblaToOfflineStorage, 
+  getQiblaFromOfflineStorage 
+} from '../lib/offlinePrayerEngine';
+import { OfflineLandmarksMap } from './OfflineLandmarksMap';
 
 interface IslamicUtilitiesProps {
   language: 'ur' | 'en';
@@ -406,22 +416,36 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
 
   // Qibla State & Sensor Logic
   const [heading, setHeading] = useState<number | null>(null);
-  const [qiblaAngle, setQiblaAngle] = useState<number>(254); // Default Makkah angle from South Asia (~254 deg)
-  const [distanceToMakkah, setDistanceToMakkah] = useState<number>(3350); // Approximate km
+  const [manualHeading, setManualHeading] = useState<number>(0);
+  const [isManualMode, setIsManualMode] = useState<boolean>(false);
+  const [hasSensorEvent, setHasSensorEvent] = useState<boolean>(false);
+  const [showCalibrationGuide, setShowCalibrationGuide] = useState<boolean>(false);
+  const [qiblaSound, setQiblaSound] = useState<boolean>(true);
+  const [qiblaAngle, setQiblaAngle] = useState<number>(268); // Default Makkah angle from Karachi/Pakistan (~268 deg)
+  const [distanceToMakkah, setDistanceToMakkah] = useState<number>(3300); // Approximate km
   const [compassPermissionNeeded, setCompassPermissionNeeded] = useState<boolean>(false);
   const [compassPermissionGranted, setCompassPermissionGranted] = useState<boolean>(false);
 
   // City coordinate map for offline / manual city Qibla calculations
-  const cityCoordinates: Record<string, { lat: number; lng: number }> = {
-    'Karachi': { lat: 24.8607, lng: 67.0011 },
-    'Lahore': { lat: 31.5204, lng: 74.3587 },
-    'Islamabad': { lat: 33.6844, lng: 73.0479 },
-    'Makkah': { lat: 21.3891, lng: 39.8579 },
-    'Madinah': { lat: 24.5247, lng: 39.5692 },
-    'London': { lat: 51.5074, lng: -0.1278 },
-    'New York': { lat: 40.7128, lng: -74.0060 },
-    'Dubai': { lat: 25.2048, lng: 55.2708 },
-    'Istanbul': { lat: 41.0082, lng: 28.9784 }
+  const cityCoordinates: Record<string, { lat: number; lng: number; country: string }> = {
+    'Karachi': { lat: 24.8607, lng: 67.0011, country: 'Pakistan' },
+    'Lahore': { lat: 31.5204, lng: 74.3587, country: 'Pakistan' },
+    'Islamabad': { lat: 33.6844, lng: 73.0479, country: 'Pakistan' },
+    'Rawalpindi': { lat: 33.5651, lng: 73.0169, country: 'Pakistan' },
+    'Faisalabad': { lat: 31.4504, lng: 73.1350, country: 'Pakistan' },
+    'Peshawar': { lat: 34.0151, lng: 71.5249, country: 'Pakistan' },
+    'Multan': { lat: 30.1575, lng: 71.5249, country: 'Pakistan' },
+    'Quetta': { lat: 30.1798, lng: 66.9750, country: 'Pakistan' },
+    'Hyderabad': { lat: 25.3960, lng: 68.3578, country: 'Pakistan' },
+    'Gujranwala': { lat: 32.1877, lng: 74.1945, country: 'Pakistan' },
+    'Sialkot': { lat: 32.4945, lng: 74.5229, country: 'Pakistan' },
+    'Sukkur': { lat: 27.7131, lng: 68.8492, country: 'Pakistan' },
+    'Makkah': { lat: 21.3891, lng: 39.8579, country: 'Saudi Arabia' },
+    'Madinah': { lat: 24.5247, lng: 39.5692, country: 'Saudi Arabia' },
+    'Dubai': { lat: 25.2048, lng: 55.2708, country: 'UAE' },
+    'London': { lat: 51.5074, lng: -0.1278, country: 'UK' },
+    'New York': { lat: 40.7128, lng: -74.0060, country: 'USA' },
+    'Istanbul': { lat: 41.0082, lng: 28.9784, country: 'Turkey' }
   };
 
   useEffect(() => {
@@ -439,6 +463,22 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
   const [selectedDuaCat, setSelectedDuaCat] = useState<string>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Online / Offline Network Listener State
+  const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // Save Prayer Settings
   useEffect(() => {
     localStorage.setItem('halqa_prayer_setting', JSON.stringify(setting));
@@ -446,9 +486,11 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
     fetchPrayerTimes();
   }, [setting]);
 
-  // Fetch Prayer Times from Aladhan API or offline fallback
+  // Fetch Prayer Times from Aladhan API or offline calculation engine
   const fetchPrayerTimes = async () => {
     setLoadingTimings(true);
+    const dateKey = new Date().toISOString().split('T')[0];
+
     try {
       let url = `https://api.aladhan.com/v1/timingsByCity?city=${encodeURIComponent(setting.city)}&country=${encodeURIComponent(setting.country)}&method=${setting.method}&school=${setting.school}`;
       
@@ -460,12 +502,15 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
       const timeoutId = setTimeout(() => controller.abort(), 6000);
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (data.data && data.data.timings) {
           setTimings(data.data.timings);
-          // Store in offline cache
+          
+          // Store in Service Worker / Local Storage Offline Cache
           localStorage.setItem('halqa_cached_timings', JSON.stringify(data.data.timings));
+          savePrayerTimesToOfflineStorage(setting.city, dateKey, data.data.timings);
           
           const h = data.data.date.hijri;
           const adjustedDay = parseInt(h.day) + setting.hijriAdjustment;
@@ -476,30 +521,30 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
         }
       }
     } catch (err) {
-      console.warn('Network error fetching prayer times, using offline cache', err);
+      console.warn('Network error fetching prayer times, using offline calculation engine', err);
     }
 
-    // Offline fallback
-    const cached = localStorage.getItem('halqa_cached_timings');
-    if (cached) {
-      setTimings(JSON.parse(cached));
+    // Offline fallback from local storage cache OR offline mathematical calculation
+    const offlineCached = getPrayerTimesFromOfflineStorage(setting.city, dateKey);
+    const legacyCached = localStorage.getItem('halqa_cached_timings');
+
+    if (offlineCached) {
+      setTimings(offlineCached);
+    } else if (legacyCached) {
+      setTimings(JSON.parse(legacyCached));
     } else {
-      // Default offline timings for Karachi / South Asia
-      setTimings({
-        Fajr: '04:25',
-        Sunrise: '05:48',
-        Dhuhr: '12:35',
-        Asr: '16:05',
-        Sunset: '19:18',
-        Maghrib: '19:18',
-        Isha: '20:42',
-        Imsak: '04:15',
-        Midnight: '00:35',
-        Firstthird: '22:15',
-        Lastthird: '02:50'
-      });
+      // Calculate exact solar prayer times offline using offline engine
+      const lat = setting.latitude || (cityCoordinates[setting.city]?.lat ?? 24.8607);
+      const lng = setting.longitude || (cityCoordinates[setting.city]?.lng ?? 67.0011);
+      const isHanafi = setting.school === 1;
+      const calculatedTimings = calculateOfflinePrayerTimes(lat, lng, new Date(), isHanafi);
+      
+      setTimings(calculatedTimings);
+      savePrayerTimesToOfflineStorage(setting.city, dateKey, calculatedTimings);
     }
-    setHijriDateString('10 Safar 1448 AH');
+
+    setHijriDateString('27 Safar 1448 AH');
+    setLocationName(setting.autoLocation ? 'Local GPS Location (Offline)' : `${setting.city}, ${setting.country}`);
     setLoadingTimings(false);
   };
 
@@ -528,29 +573,114 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
     }
   };
 
-  // Calculate Qibla Angle from Lat/Lng
+  // Calculate Qibla Angle from Lat/Lng using Offline Qibla Engine
   const calculateQibla = (lat: number, lng: number) => {
-    const makkahLat = 21.4225 * (Math.PI / 180);
-    const makkahLng = 39.8262 * (Math.PI / 180);
-    const phi = lat * (Math.PI / 180);
-    const lambda = lng * (Math.PI / 180);
+    const qiblaRes = calculateOfflineQibla(lat, lng);
+    setQiblaAngle(qiblaRes.qiblaAngle);
+    setDistanceToMakkah(qiblaRes.distanceKm);
 
-    const y = Math.sin(makkahLng - lambda);
-    const x = Math.cos(phi) * Math.tan(makkahLat) - Math.sin(phi) * Math.cos(makkahLng - lambda);
-    let qibla = Math.atan2(y, x) * (180 / Math.PI);
-    qibla = (qibla + 360) % 360;
-    setQiblaAngle(Math.round(qibla));
-
-    // Distance calculation
-    const R = 6371; // km
-    const dLat = makkahLat - phi;
-    const dLon = makkahLng - lambda;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(phi) * Math.cos(makkahLat) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    setDistanceToMakkah(Math.round(R * c));
+    // Save Qibla result to offline storage
+    saveQiblaToOfflineStorage(setting.city, qiblaRes);
   };
 
-  // Device Orientation Handler for Qibla Compass with iOS permission & webkitCompassHeading support
+  // Helper cardinal text display
+  const getCardinalDirectionText = (angle: number, isUrdu: boolean) => {
+    if (angle >= 337.5 || angle < 22.5) return isUrdu ? 'شمال (North)' : 'North (شمال)';
+    if (angle >= 22.5 && angle < 67.5) return isUrdu ? 'شمال مشرق (NE)' : 'North-East (شمال مشرق)';
+    if (angle >= 67.5 && angle < 112.5) return isUrdu ? 'مشرق (East)' : 'East (مشرق)';
+    if (angle >= 112.5 && angle < 157.5) return isUrdu ? 'جنوب مشرق (SE)' : 'South-East (جنوب مشرق)';
+    if (angle >= 157.5 && angle < 202.5) return isUrdu ? 'جنوب (South)' : 'South (جنوب)';
+    if (angle >= 202.5 && angle < 247.5) return isUrdu ? 'جنوب مغرب (SW)' : 'South-West (جنوب مغرب)';
+    if (angle >= 247.5 && angle < 292.5) return isUrdu ? 'مغرب (West)' : 'West (مغرب)';
+    return isUrdu ? 'شمال مغرب (NW)' : 'North-West (شمال مغرب)';
+  };
+
+  // Web Audio Chime Sound for Perfect Alignment
+  const playQiblaChime = () => {
+    if (!qiblaSound) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.exponentialRampToValueAtTime(659.25, ctx.currentTime + 0.12); // E5
+      osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.25); // G5
+
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+
+      if ('vibrate' in navigator) {
+        navigator.vibrate([80, 40, 80]);
+      }
+    } catch (err) {
+      // Audio not permitted or muted
+    }
+  };
+
+  // Smooth test alignment animation for manual / desktop mode
+  const handleTestAutoRotate = () => {
+    setIsManualMode(true);
+    const start = manualHeading;
+    const target = qiblaAngle;
+    const startTime = performance.now();
+    const duration = 1200;
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round((start + (target - start) * ease + 360) % 360);
+      setManualHeading(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setManualHeading(target);
+        playQiblaChime();
+      }
+    };
+    requestAnimationFrame(animate);
+  };
+
+  // Quick City Selection directly in Qibla tab
+  const handleSelectQiblaCity = (cityName: string) => {
+    const c = cityCoordinates[cityName];
+    if (c) {
+      setSetting(prev => ({
+        ...prev,
+        city: cityName,
+        country: c.country,
+        autoLocation: false,
+        latitude: c.lat,
+        longitude: c.lng
+      }));
+      calculateQibla(c.lat, c.lng);
+      setLocationName(`${cityName}, ${c.country}`);
+    }
+  };
+
+  // Active heading calculation
+  const activeHeading = isManualMode || heading === null ? manualHeading : heading;
+  const isAligned = Math.abs(((activeHeading - qiblaAngle + 540) % 360) - 180) <= 5;
+
+  // Sound chime trigger on alignment
+  useEffect(() => {
+    if (isAligned && activeTab === 'qibla') {
+      playQiblaChime();
+    }
+  }, [isAligned, activeTab]);
+
+  // Device Orientation Listener with iOS permission & webkitCompassHeading support
   useEffect(() => {
     if (typeof (DeviceOrientationEvent as any) !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
       setCompassPermissionNeeded(true);
@@ -562,17 +692,16 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
   const startCompassListener = () => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       let compassHeading: number | null = null;
-      // Sensor preference: iOS webkitCompassHeading directly provides magnetic heading (0..360)
       if (typeof (e as any).webkitCompassHeading !== 'undefined' && (e as any).webkitCompassHeading !== null) {
         compassHeading = (e as any).webkitCompassHeading;
       } else if (e.alpha !== null) {
-        // Standard Android/Web DeviceOrientationEvent
         compassHeading = (360 - e.alpha) % 360;
       }
 
       if (compassHeading !== null) {
         setHeading(Math.round((compassHeading + 360) % 360));
         setCompassPermissionGranted(true);
+        setHasSensorEvent(true);
       }
     };
 
@@ -594,11 +723,13 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
           startCompassListener();
         } else {
           setCompassPermissionGranted(false);
-          alert(isUr ? 'کمپاس سنسر کی اجازت منظور نہیں کی گئی۔' : 'Compass sensor permission was not granted.');
+          setIsManualMode(true);
+          alert(isUr ? 'کمپاس سنسر کی اجازت نہیں ملی۔ آپ دستی (Manual) موڈ استعمال کر سکتے ہیں۔' : 'Compass sensor permission not granted. You can use Manual Dial mode.');
         }
       } catch (err) {
         console.error('Compass permission error:', err);
         setCompassPermissionGranted(false);
+        setIsManualMode(true);
       }
     } else {
       startCompassListener();
@@ -722,6 +853,17 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
           </button>
         </div>
 
+        {/* Offline Status Banner */}
+        {isOffline && (
+          <div className="mb-3 bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <WifiOff size={16} className="text-amber-500 shrink-0 animate-pulse" />
+              <span>{isUr ? 'آف لائن موڈ فعال ہے — قبلہ کمپاس اور اوقاتِ نماز لوکل کیش اور ڈیوائس سنسر سے چالو ہیں۔' : 'Offline Mode Active — Prayer times & Qibla compass are running via Service Worker & local cache.'}</span>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-md border border-amber-500/40 shrink-0 font-extrabold">Offline Engine</span>
+          </div>
+        )}
+
         {/* Tab Navigation Pill bar */}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800/80">
           {[
@@ -807,178 +949,304 @@ export const IslamicUtilities: React.FC<IslamicUtilitiesProps> = ({
             exit={{ opacity: 0, y: -10 }}
             className="space-y-4 text-center"
           >
-            <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-5">
-              <div>
-                <h3 className="font-serif font-bold text-base sm:text-lg text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-2">
-                  <Compass size={20} className="text-amber-500" />
-                  <span>{isUr ? 'قبلہ رخ نما (سنسر کمپاس)' : 'Qibla Direction Compass'}</span>
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {isUr 
-                    ? `مکہ مکرمہ کا زاویہ: ${qiblaAngle}° | فاصلہ: ${distanceToMakkah.toLocaleString()} کلومیٹر (${locationName})` 
-                    : `Qibla Bearing: ${qiblaAngle}° from North | Distance: ${distanceToMakkah.toLocaleString()} km (${locationName})`}
-                </p>
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+              
+              {/* Header Title & City Selector */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                  <h3 className="font-serif font-bold text-base sm:text-lg text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                    <Compass size={22} className="text-amber-500 animate-spin-slow" />
+                    <span>{isUr ? 'قبلہ رخ نما (کامل سمتی کمپاس)' : 'Qibla Direction Compass'}</span>
+                  </h3>
+
+                  {/* Inline Quick City Selector */}
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <MapPin size={14} className="text-emerald-500 shrink-0" />
+                    <select
+                      value={setting.city in cityCoordinates ? setting.city : 'Karachi'}
+                      onChange={(e) => handleSelectQiblaCity(e.target.value)}
+                      className="bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 font-bold text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    >
+                      {Object.keys(cityCoordinates).map((cName) => (
+                        <option key={cName} value={cName}>
+                          {cName} ({cityCoordinates[cName].country})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                  <span>
+                    {isUr ? 'مطلوبہ زاویہ:' : 'Qibla Angle:'} <strong className="text-amber-600 dark:text-amber-400 font-mono">{qiblaAngle}°</strong> ({getCardinalDirectionText(qiblaAngle, isUr)})
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {isUr ? 'کعبہ کا فاصلہ:' : 'Distance to Kaaba:'} <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{distanceToMakkah.toLocaleString()} km</strong>
+                  </span>
+                </div>
               </div>
 
-              {/* IOS / Sensor Permission Callout if needed */}
-              {compassPermissionNeeded && !compassPermissionGranted && (
+              {/* Mode Switch Pill Bar */}
+              <div className="flex items-center justify-between gap-2 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1 flex-1">
+                  <button
+                    onClick={() => setIsManualMode(false)}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                      !isManualMode
+                        ? 'bg-emerald-700 text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <span>🛰️</span>
+                    <span>{isUr ? 'سنسر موڈ (Live)' : 'Sensor Mode'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsManualMode(true)}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                      isManualMode
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <span>🎛️</span>
+                    <span>{isUr ? 'دستی موڈ (Manual)' : 'Manual Mode'}</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setQiblaSound(!qiblaSound)}
+                  className={`p-1.5 rounded-lg border transition-colors shrink-0 ${
+                    qiblaSound ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 border-slate-300 dark:border-slate-600'
+                  }`}
+                  title={isUr ? 'آواز بند/کھولیں' : 'Toggle Audio Chime'}
+                >
+                  {qiblaSound ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                </button>
+              </div>
+
+              {/* Live Sensor Callout / Notice */}
+              {compassPermissionNeeded && !compassPermissionGranted && !isManualMode && (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-left flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="space-y-0.5 text-xs text-amber-800 dark:text-amber-300">
                     <span className="font-bold block">{isUr ? 'کمپاس سنسر کی اجازت درکار ہے' : 'Compass Sensor Permission Required'}</span>
                     <span className="text-[11px] text-slate-600 dark:text-slate-400 block">
-                      {isUr ? 'کمپاس کو ڈیوائس کی سمت معلوم کرنے کے لیے سنسر ایکسیس چاہیے' : 'Grant device orientation access to view live interactive compass movement.'}
+                      {isUr ? 'کمپاس کو لائیو سمت معلوم کرنے کے لیے ڈیوائس سنسر کی اجازت دیں۔' : 'Grant sensor access for real-time mobile orientation.'}
                     </span>
                   </div>
                   <button
                     onClick={requestCompassPermission}
-                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shadow-xs shrink-0 whitespace-nowrap"
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg shrink-0"
                   >
                     {isUr ? 'سنسر فعال کریں' : 'Enable Sensor'}
                   </button>
                 </div>
               )}
 
-              {/* Live Alignment Notification Banner */}
-              {heading !== null && Math.abs(((heading - qiblaAngle + 540) % 360) - 180) <= 5 && (
-                <motion.div 
-                  initial={{ scale: 0.9, opacity: 0 }}
+              {/* Perfect Alignment Banner */}
+              {isAligned && (
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="p-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg border border-emerald-400 flex items-center justify-center gap-2 animate-pulse"
+                  className="p-3 bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg border border-emerald-400 flex items-center justify-center gap-2 animate-pulse"
                 >
-                  <Check size={18} />
-                  <span>{isUr ? 'آپ کی ڈیوائس بالکل قبلہ رخ کی سمت میں ہے!' : 'Perfect Alignment! You are facing the Holy Kaaba.'}</span>
+                  <Check size={20} className="text-amber-300 shrink-0" />
+                  <span className="text-xs sm:text-sm">
+                    {isUr ? 'قِبلہ کا درست رخ متصل ہے! (آپ کا رخ بالکل خانہ کعبہ کی سمت میں ہے)' : 'Perfect Alignment! You are facing the Holy Kaaba 🕋.'}
+                  </span>
                 </motion.div>
               )}
 
               {/* Enhanced Visual Compass Dial */}
-              <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto flex items-center justify-center my-2">
-                {/* Phone Top Direction Pointer (Fixed at top) */}
-                <div className="absolute -top-3 z-20 flex flex-col items-center">
-                  <div className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[12px] border-b-amber-400 drop-shadow-md"></div>
-                  <span className="text-[9px] font-bold text-amber-400 uppercase tracking-tighter bg-slate-900/90 px-1.5 py-0.5 rounded border border-amber-500/30">
-                    {isUr ? 'فون کا سرا' : 'TOP'}
+              <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto flex items-center justify-center my-3 select-none">
+                
+                {/* Fixed TOP Phone Marker */}
+                <div className="absolute -top-3.5 z-30 flex flex-col items-center">
+                  <div className="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[14px] border-b-amber-400 drop-shadow-md"></div>
+                  <span className="text-[8px] font-black text-amber-300 uppercase tracking-wider bg-slate-950/90 px-2 py-0.5 rounded border border-amber-500/40 shadow-sm">
+                    {isUr ? 'فون کا رخ (TOP)' : 'TOP OF DEVICE'}
                   </span>
                 </div>
 
-                {/* Outer Brass Bezel */}
-                <div className="w-full h-full rounded-full border-4 border-amber-500/40 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 shadow-2xl relative flex items-center justify-center p-3 overflow-hidden">
+                {/* Bezel Ring */}
+                <div className={`w-full h-full rounded-full border-4 ${
+                  isAligned ? 'border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.6)]' : 'border-amber-500/40 shadow-2xl'
+                } bg-gradient-to-b from-slate-900 via-slate-950 to-slate-900 relative flex items-center justify-center p-3 overflow-hidden transition-all duration-300`}>
                   
-                  {/* Rotating Dial Plate (Rotates by -heading) */}
+                  {/* Rotating Dial Plate */}
                   <div 
                     className="w-full h-full rounded-full relative flex items-center justify-center transition-transform duration-200 ease-out"
-                    style={{ transform: `rotate(-${heading || 0}deg)` }}
+                    style={{ transform: `rotate(-${activeHeading}deg)` }}
                   >
-                    {/* Degree Ticks around the circle (every 30 deg) */}
+                    {/* Degree Ticks around circle */}
                     {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => (
                       <div 
                         key={deg}
                         className="absolute w-full h-full flex justify-center pt-1"
                         style={{ transform: `rotate(${deg}deg)` }}
                       >
-                        <div className={`w-0.5 ${deg % 90 === 0 ? 'h-3 bg-amber-400' : 'h-1.5 bg-slate-600'}`}></div>
+                        <div className={`w-0.5 ${deg % 90 === 0 ? 'h-3.5 bg-amber-400' : 'h-2 bg-slate-600'}`}></div>
                       </div>
                     ))}
 
-                    {/* Cardinal Direction Labels */}
-                    {/* NORTH (0°) */}
-                    <div className="absolute top-2.5 flex flex-col items-center text-red-500">
-                      <span className="font-mono font-black text-xs sm:text-sm leading-none">N</span>
-                      <span className="text-[8px] font-serif font-bold leading-tight">{isUr ? 'شمال' : 'North'}</span>
+                    {/* Cardinal Labels */}
+                    <div className="absolute top-2 flex flex-col items-center text-red-500 font-mono font-black text-xs sm:text-sm">
+                      N
+                      <span className="text-[8px] font-serif font-bold text-red-400">{isUr ? 'شمال' : 'North'}</span>
                     </div>
 
-                    {/* NORTH EAST (45°) */}
-                    <div className="absolute w-full h-full flex justify-center pt-7" style={{ transform: 'rotate(45deg)' }}>
-                      <span className="text-[9px] font-bold text-slate-500 font-mono">NE</span>
+                    <div className="absolute right-2 flex flex-col items-center text-emerald-400 font-mono font-bold text-xs">
+                      E
+                      <span className="text-[8px] font-serif text-emerald-300">{isUr ? 'مشرق' : 'East'}</span>
                     </div>
 
-                    {/* EAST (90°) */}
-                    <div className="absolute right-2.5 flex flex-col items-center text-emerald-400">
-                      <span className="font-mono font-bold text-xs leading-none">E</span>
-                      <span className="text-[8px] font-serif font-bold leading-tight">{isUr ? 'مشرق' : 'East'}</span>
+                    <div className="absolute bottom-2 flex flex-col items-center text-slate-400 font-mono font-bold text-xs">
+                      <span className="text-[8px] font-serif text-slate-300">{isUr ? 'جنوب' : 'South'}</span>
+                      S
                     </div>
 
-                    {/* SOUTH EAST (135°) */}
-                    <div className="absolute w-full h-full flex justify-center pb-7 items-end" style={{ transform: 'rotate(-45deg)' }}>
-                      <span className="text-[9px] font-bold text-slate-500 font-mono">SE</span>
+                    <div className="absolute left-2 flex flex-col items-center text-emerald-400 font-mono font-bold text-xs">
+                      W
+                      <span className="text-[8px] font-serif text-emerald-300">{isUr ? 'مغرب' : 'West'}</span>
                     </div>
 
-                    {/* SOUTH (180°) */}
-                    <div className="absolute bottom-2.5 flex flex-col items-center text-slate-400">
-                      <span className="text-[8px] font-serif font-bold leading-tight">{isUr ? 'جنوب' : 'South'}</span>
-                      <span className="font-mono font-bold text-xs leading-none">S</span>
-                    </div>
-
-                    {/* SOUTH WEST (225°) */}
-                    <div className="absolute w-full h-full flex justify-center pb-7 items-end" style={{ transform: 'rotate(45deg)' }}>
-                      <span className="text-[9px] font-bold text-slate-500 font-mono">SW</span>
-                    </div>
-
-                    {/* WEST (270°) */}
-                    <div className="absolute left-2.5 flex flex-col items-center text-emerald-400">
-                      <span className="font-mono font-bold text-xs leading-none">W</span>
-                      <span className="text-[8px] font-serif font-bold leading-tight">{isUr ? 'مغرب' : 'West'}</span>
-                    </div>
-
-                    {/* NORTH WEST (315°) */}
-                    <div className="absolute w-full h-full flex justify-center pt-7" style={{ transform: 'rotate(-45deg)' }}>
-                      <span className="text-[9px] font-bold text-slate-500 font-mono">NW</span>
-                    </div>
-
-                    {/* Kaaba Direction Indicator Needle */}
+                    {/* Kaaba Direction Beam Needle */}
                     <div 
                       className="absolute w-full h-full flex justify-center items-center pointer-events-none"
                       style={{ transform: `rotate(${qiblaAngle}deg)` }}
                     >
-                      <div className="w-1 h-1/2 bg-gradient-to-t from-transparent via-amber-400 to-amber-300 origin-bottom absolute bottom-1/2 rounded-full flex flex-col items-center shadow-[0_0_12px_rgba(251,191,36,0.8)]">
-                        <div className="w-8 h-8 bg-amber-400 text-slate-950 font-bold rounded-full flex items-center justify-center text-xs shadow-xl -mt-4 border-2 border-slate-900 animate-bounce">
+                      <div className="w-1.5 h-1/2 bg-gradient-to-t from-transparent via-amber-400 to-amber-300 origin-bottom absolute bottom-1/2 rounded-full flex flex-col items-center shadow-[0_0_15px_rgba(251,191,36,0.9)]">
+                        <div className="w-9 h-9 bg-gradient-to-br from-amber-300 to-amber-500 text-slate-950 font-black rounded-full flex items-center justify-center text-sm shadow-xl -mt-4 border-2 border-slate-950 animate-pulse">
                           🕋
                         </div>
                       </div>
                     </div>
 
-                    {/* Dial Center Pivot Pin */}
-                    <div className="w-6 h-6 rounded-full bg-amber-400 border-2 border-slate-950 z-10 shadow-lg flex items-center justify-center text-[8px] text-slate-950 font-black">
-                      {heading !== null ? `${heading}°` : `${qiblaAngle}°`}
+                    {/* Pivot Pin */}
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 border-2 border-slate-950 z-20 shadow-lg flex items-center justify-center text-[9px] text-slate-950 font-black">
+                      {activeHeading}°
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Status Info & Calibration Options */}
+              {/* Interactive Manual Controls / Dial Angle Slider */}
+              {isManualMode && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs text-amber-900 dark:text-amber-300 font-bold">
+                    <span>{isUr ? 'ڈائل کو موڑیں (توجیہ):' : 'Rotate Compass Dial Manually:'}</span>
+                    <span className="font-mono text-amber-600 dark:text-amber-400">{manualHeading}° ({getCardinalDirectionText(manualHeading, isUr)})</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={manualHeading}
+                    onChange={(e) => setManualHeading(parseInt(e.target.value, 10))}
+                    className="w-full accent-amber-500 cursor-pointer"
+                  />
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      onClick={() => setManualHeading((prev) => (prev + 345) % 360)}
+                      className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded text-xs font-bold"
+                    >
+                      -15°
+                    </button>
+                    <button
+                      onClick={handleTestAutoRotate}
+                      className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded shadow-xs flex items-center gap-1.5"
+                    >
+                      <span>🎯</span>
+                      <span>{isUr ? 'قبلہ کی طرف خودکار الائنمنٹ ٹیسٹ' : 'Test Auto Alignment'}</span>
+                    </button>
+                    <button
+                      onClick={() => setManualHeading((prev) => (prev + 15) % 360)}
+                      className="px-2.5 py-1 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded text-xs font-bold"
+                    >
+                      +15°
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Info Badges */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 text-left">
-                  <span className="text-[10px] text-slate-400 block">{isUr ? 'ڈیوائس کا رخ (Heading)' : 'Current Heading'}</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-sm">
-                    {heading !== null ? `${heading}°` : (isUr ? 'سنسر غیر فعال' : 'Sensor Inactive')}
+                  <span className="text-[10px] text-slate-400 block">{isUr ? 'موجودہ زاوِیہ (Current)' : 'Current Heading'}</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                    {activeHeading}° ({getCardinalDirectionText(activeHeading, isUr)})
                   </span>
                 </div>
 
                 <div className="p-2.5 bg-emerald-50/60 dark:bg-emerald-950/40 rounded-xl border border-emerald-100 dark:border-emerald-800/60 text-left">
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">{isUr ? 'مطلوبہ سمتِ قبلہ' : 'Target Qibla Bearing'}</span>
-                  <span className="font-mono font-bold text-emerald-800 dark:text-emerald-300 text-sm">
-                    {qiblaAngle}° {isUr ? 'شمال سے' : 'from North'}
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">{isUr ? 'مطلوبہ قبلہ رخ (Target)' : 'Target Qibla Bearing'}</span>
+                  <span className="font-mono font-bold text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm">
+                    {qiblaAngle}° ({getCardinalDirectionText(qiblaAngle, isUr)})
                   </span>
                 </div>
               </div>
 
               {/* Action Toolbar */}
-              <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <button
                   onClick={handleDetectLocation}
                   className="flex-1 py-2 px-3 bg-emerald-800 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                 >
                   <MapPin size={14} />
-                  <span>{isUr ? 'مقام اپ ڈیٹ کریں (GPS)' : 'Update GPS Location'}</span>
+                  <span>{isUr ? 'جی پی ایس مقام (GPS)' : 'Update GPS Location'}</span>
                 </button>
 
                 <button
-                  onClick={requestCompassPermission}
+                  onClick={() => setShowCalibrationGuide(!showCalibrationGuide)}
                   className="py-2 px-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-colors"
                 >
-                  <RotateCcw size={14} />
-                  <span>{isUr ? 'سنسر ری سیٹ' : 'Reset Sensor'}</span>
+                  <Info size={14} className="text-amber-500" />
+                  <span>{isUr ? 'کیلیبریشن رہنمائی' : 'Calibration Guide'}</span>
                 </button>
               </div>
+
+              {/* Collapsible Calibration Instructions */}
+              {showCalibrationGuide && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="p-3 bg-slate-900 text-slate-200 rounded-xl text-xs text-right space-y-2 border border-slate-800 text-left font-serif leading-relaxed"
+                >
+                  <h4 className="font-bold text-amber-400 flex items-center gap-1.5 border-b border-slate-800 pb-1">
+                    <Info size={14} />
+                    <span>{isUr ? 'کمپاس سنسر کی درستگی اور رہنمائی:' : 'Compass Sensor Calibration & Tips:'}</span>
+                  </h4>
+                  <ul className="space-y-1 text-[11px] text-slate-300 list-disc list-inside">
+                    <li>{isUr ? 'موبائل سنسر کو کیلیبریٹ کرنے کے لیے فون کو ہوا میں انگریزی کے "8" کے ہندسے کی شکل میں 2 سے 3 بار گھمائیں۔' : 'Calibrate sensor by waving phone in a Figure-8 motion 2-3 times in the air.'}</li>
+                    <li>{isUr ? 'فون کو لیپ ٹاپ، میگنیٹ یا لوہے کی اشیاء کے بالکل قریب نہ رکھیں۔' : 'Keep device away from laptops, speakers, or large magnetic/metal objects.'}</li>
+                    <li>{isUr ? 'اگر ڈیوائس کا میگنیٹو میٹر نہ ہو تو "دستی موڈ (Manual Mode)" کا استعمال کریں۔' : 'Use Manual Mode if your device lacks a hardware compass sensor.'}</li>
+                  </ul>
+                </motion.div>
+              )}
+
+              {/* Integrated Offline Vector Map & Historic Landmarks Engine */}
+              <div className="pt-2">
+                <OfflineLandmarksMap 
+                  isUr={isUr} 
+                  currentSelectedCity={setting.city}
+                  onSelectLocation={(city, country, lat, lng) => {
+                    const newSetting: PrayerTimeSetting = {
+                      ...setting,
+                      city,
+                      country,
+                      latitude: lat,
+                      longitude: lng,
+                      autoLocation: false
+                    };
+                    setSetting(newSetting);
+                    if (onUpdatePrayerSetting) onUpdatePrayerSetting(newSetting);
+                    calculateQibla(lat, lng);
+                  }}
+                />
+              </div>
+
             </div>
           </motion.div>
         )}

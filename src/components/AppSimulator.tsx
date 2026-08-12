@@ -37,6 +37,7 @@ import {
   User, 
   Folder, 
   Play, 
+  Edit3,
   Pause, 
   ChevronRight, 
   ChevronLeft, 
@@ -79,12 +80,14 @@ import { IslamicUtilities } from './IslamicUtilities';
 import { PostSplashScreenItem, Post, Category, PDFBook, VideoItem, AudioItem, GalleryAlbum, GalleryImage, FeedbackItem, AppNotification, SliderItem, ContactInfo, SocialLinks, UserSettings, DonationInitiative, DonationRecord, InfoPage, Branch, DayDatasetRecord, AppUser, SpiritualSlip, ModSettings, MakhzanCategory, MakhzanPost, SpiritualPersonality, HadeesItem, DownloadProgressItem } from '../types';
 import { ayatOfTheDay, hadithOfTheDay, quoteOfTheDay, upcomingPrograms, latestAnnouncement, featuredPersonality, dailyHadeesCollection } from '../data';
 import { PrayerWidget } from './PrayerWidget';
+import { AdhanAlarmModal } from './AdhanAlarmModal';
 import { SalawatScreen } from './SalawatScreen';
 import { AbjadTashkheesCalculator } from './AbjadTashkheesCalculator';
 import { UserSlipsHistory } from './UserSlipsHistory';
 import { UserAuthScreen } from './UserAuthScreen';
 import { MakhzanEKhas } from './MakhzanEKhas';
 import { VoicePlayer } from './VoicePlayer';
+import { PdfViewerModal } from './PdfViewerModal';
 import { voiceReaderEngine, detectLanguage } from '../lib/voiceReaderEngine';
 import { onFCMMessage } from '../lib/firebaseService';
 
@@ -1221,11 +1224,32 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                 if (!currentItem) return null;
 
                 return (
-                  <div className="relative h-44 rounded-2xl overflow-hidden shadow-md group">
+                  <div className="relative h-44 rounded-2xl overflow-hidden shadow-md group bg-slate-950 flex items-center justify-center">
+                    {/* Quick Admin Edit Button overlay */}
+                    {onSwitchViewMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSwitchViewMode('admin');
+                        }}
+                        title="Edit Home Banners in Admin Panel / سلائیڈر میں ترمیم کریں"
+                        className="absolute top-2.5 right-2.5 z-20 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold rounded-lg flex items-center gap-1 shadow-lg cursor-pointer transition-all border border-amber-300/50"
+                      >
+                        <Edit3 size={12} />
+                        <span>Edit Banner (ترمیم)</span>
+                      </button>
+                    )}
+                    {currentItem.imageUrl && (
+                      <img 
+                        src={currentItem.imageUrl} 
+                        alt="" 
+                        className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 pointer-events-none"
+                      />
+                    )}
                     <img 
                       src={currentItem.imageUrl || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&q=80&w=800'} 
                       alt="" 
-                      className="w-full h-full object-cover"
+                      className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-3.5 text-left" dir="ltr">
                       {currentItem.linkToType && (
@@ -1489,7 +1513,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                       onClick={() => { setSelectedPost(post); setActiveScreen('post-detail'); }}
                       className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 flex gap-3 p-2 cursor-pointer hover:border-emerald-500/40"
                     >
-                      <img src={post.coverImage || undefined} className="w-20 h-20 rounded-lg object-cover" alt="" />
+                      <div className="w-20 h-20 rounded-lg bg-slate-900 border border-slate-800/80 shrink-0 overflow-hidden flex items-center justify-center relative">
+                        {post.coverImage && (
+                          <img src={post.coverImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                        )}
+                        <img src={post.coverImage || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                      </div>
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
                           <span className="text-[9px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded-md">
@@ -1655,7 +1684,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                       onClick={() => { setSelectedPost(post); setActiveScreen('post-detail'); }}
                       className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm flex gap-3 p-2.5 cursor-pointer hover:border-emerald-500/40"
                     >
-                      <img src={post.coverImage || undefined} className="w-20 h-20 rounded-lg object-cover" alt="" />
+                      <div className="w-20 h-20 rounded-lg bg-slate-900 border border-slate-800/80 shrink-0 overflow-hidden flex items-center justify-center relative">
+                        {post.coverImage && (
+                          <img src={post.coverImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                        )}
+                        <img src={post.coverImage || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                      </div>
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
                           <h4 className="font-bold text-xs text-slate-800 dark:text-white line-clamp-2 leading-tight">
@@ -1895,7 +1929,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                             onClick={() => setGalleryAlbum(alb)}
                             className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm cursor-pointer hover:border-emerald-500/40"
                           >
-                            <img src={alb.coverImage || undefined} className="w-full h-24 object-cover" alt="" />
+                            <div className="w-full h-24 bg-slate-950 flex items-center justify-center relative overflow-hidden">
+                              {alb.coverImage && (
+                                <img src={alb.coverImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                              )}
+                              <img src={alb.coverImage || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                            </div>
                             <div className="p-2.5 text-left">
                               <span className="text-[7px] uppercase font-bold tracking-widest text-emerald-600 dark:text-emerald-400">{alb.type}</span>
                               <h4 className="font-bold text-xs text-slate-800 dark:text-white mt-0.5 line-clamp-1">{isUr ? alb.nameUrdu : alb.name}</h4>
@@ -1924,8 +1963,11 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                         {galleryImages
                           .filter(img => img.albumId === galleryAlbum.id)
                           .map((img) => (
-                            <div key={img.id} className="relative group rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800">
-                              <img src={img.imageUrl || undefined} className="w-full h-28 object-cover" alt="" />
+                            <div key={img.id} className="relative group rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-950 flex items-center justify-center h-28">
+                              {img.imageUrl && (
+                                <img src={img.imageUrl} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                              )}
+                              <img src={img.imageUrl || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
                               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex flex-col justify-end p-2 text-left">
                                 <h5 className="text-white font-bold text-[9px] line-clamp-1">{isUr ? img.titleUrdu : img.title}</h5>
                                 <p className="text-[8px] text-slate-300 line-clamp-2 leading-tight mt-0.5">{img.description}</p>
@@ -1997,7 +2039,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                       className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm p-3 flex flex-col gap-2"
                     >
                       <div className="flex gap-3">
-                        <img src={book.coverImage || undefined} className="w-16 h-22 rounded object-cover shadow-sm shrink-0" alt="" />
+                        <div className="w-16 h-22 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center relative shadow-sm">
+                          {book.coverImage && (
+                            <img src={book.coverImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                          )}
+                          <img src={book.coverImage || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                        </div>
                         <div className="flex-1 flex flex-col justify-between min-w-0">
                           <div>
                             <div className="flex justify-between items-start gap-1">
@@ -2096,84 +2143,11 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
 
           {/* ==================== PDF READER VIEW SCREEN ==================== */}
           {activeScreen === 'pdf-reader' && selectedPdf && (
-            <motion.div 
-              key="pdf-reader"
-              ref={pdfContainerRef}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-slate-950 flex flex-col w-full h-full min-h-screen"
-              dir="ltr"
-            >
-              {/* PDF Header Toolbar */}
-              <div className="bg-slate-900 text-white px-3 py-2.5 flex items-center justify-between shrink-0 border-b border-slate-800 shadow-md">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <button 
-                    onClick={() => setActiveScreen('pdfs')}
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-full transition-colors shrink-0"
-                    title={isUr ? "واپس" : "Back to PDF Library"}
-                  >
-                    <ArrowLeft size={18} />
-                  </button>
-                  <div className="truncate text-left">
-                    <h4 className="font-bold text-xs sm:text-sm truncate text-slate-100">
-                      {selectedPdf.titleUrdu || selectedPdf.title}
-                    </h4>
-                    {selectedPdf.author && (
-                      <p className="text-[10px] text-slate-400 truncate">
-                        {selectedPdf.authorUrdu || selectedPdf.author}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={toggleFullscreen}
-                    className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors border border-slate-700/60"
-                    title={isFullscreen ? (isUr ? "فل سکرین سے نکلیں" : "Exit Fullscreen") : (isUr ? "فل سکرین" : "Fullscreen")}
-                  >
-                    {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-                    <span className="hidden sm:inline">
-                      {isFullscreen 
-                        ? (isUr ? "چھوٹا کریں" : "Exit Fullscreen") 
-                        : (isUr ? "فل سکرین" : "Fullscreen")}
-                    </span>
-                  </button>
-
-                  {selectedPdf.pdfUrl && (
-                    <a
-                      href={selectedPdf.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0"
-                    >
-                      <span>{isUr ? "نئی ٹیب میں کھولیں" : "Open Direct"}</span>
-                      <ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* Full-Screen PDF iframe Container */}
-              <div className="flex-1 w-full h-full bg-slate-900 relative overflow-hidden">
-                {selectedPdf.pdfUrl ? (
-                  <iframe
-                    src={selectedPdf.pdfUrl}
-                    title={selectedPdf.title}
-                    className="w-full h-full border-0 block"
-                    style={{ width: '100%', height: '100%', minHeight: '100%' }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center font-serif">
-                    <FileText size={48} className="text-slate-600 mb-3" />
-                    <p className="text-sm font-bold text-slate-300">
-                      {isUr ? "پی ڈی ایف کا لنک دستیاب نہیں ہے۔" : "PDF document URL is not available."}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+            <PdfViewerModal
+              pdf={selectedPdf}
+              onClose={() => setActiveScreen('pdfs')}
+              isUrdu={isUr}
+            />
           )}
 
           {/* ==================== 6. MORE TAB / EXTRA SCREENS ==================== */}
@@ -2503,9 +2477,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
               </div>
 
               {/* Cover Image */}
-              <div className="h-48 rounded-2xl overflow-hidden shadow-sm relative">
-                <img src={selectedPost.coverImage || undefined} className="w-full h-full object-cover" alt="" />
-                <div className="absolute top-2 left-2 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
+              <div className="h-48 sm:h-60 rounded-2xl overflow-hidden shadow-sm relative bg-slate-950 flex items-center justify-center border border-slate-800">
+                {selectedPost.coverImage && (
+                  <img src={selectedPost.coverImage} className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 pointer-events-none" alt="" />
+                )}
+                <img src={selectedPost.coverImage || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                <div className="absolute top-2 left-2 z-20 bg-emerald-800 text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
                   {selectedPost.category}
                 </div>
               </div>
@@ -2617,7 +2594,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                         onClick={() => setSelectedPost(rp)}
                         className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-2.5 rounded-xl flex gap-3 cursor-pointer hover:border-emerald-500/30"
                       >
-                        <img src={rp.coverImage || undefined} className="w-12 h-12 rounded object-cover" alt="" />
+                        <div className="w-12 h-12 rounded bg-slate-900 border border-slate-800 shrink-0 overflow-hidden flex items-center justify-center relative">
+                          {rp.coverImage && (
+                            <img src={rp.coverImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                          )}
+                          <img src={rp.coverImage || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                        </div>
                         <div className="flex-1">
                           <h5 className="font-bold text-xs text-slate-800 dark:text-white line-clamp-1">{isUr ? rp.titleUrdu : rp.title}</h5>
                           <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-1">{isUr ? rp.shortDescriptionUrdu : rp.shortDescription}</p>
@@ -3494,7 +3476,12 @@ export const AppSimulator: React.FC<AppSimulatorProps> = ({
                         key={init.id}
                         className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 overflow-hidden shadow-sm flex flex-col"
                       >
-                        <img src={init.image || undefined} className="w-full h-32 object-cover" alt="" />
+                        <div className="w-full h-32 bg-slate-950 flex items-center justify-center relative overflow-hidden">
+                          {init.image && (
+                            <img src={init.image} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                          )}
+                          <img src={init.image || undefined} className="relative z-10 max-h-full max-w-full object-contain mx-auto" alt="" />
+                        </div>
                         <div className="p-4 space-y-3">
                           <div>
                             <h4 className="font-bold text-xs text-slate-800 dark:text-white leading-tight">
@@ -4194,19 +4181,25 @@ Status: VERIFIED & SECURED (DIGITALLY SIGNED)
                       >
                         <div>
                           {page.featuredImage ? (
-                            <div className="h-32 w-full overflow-hidden relative bg-slate-100 dark:bg-slate-800">
+                            <div className="h-32 w-full overflow-hidden relative bg-slate-950 flex items-center justify-center">
+                              {page.featuredImage && (
+                                <img src={page.featuredImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                              )}
                               <img
                                 src={page.featuredImage || undefined}
                                 alt={page.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                               />
                             </div>
                           ) : page.bannerImage ? (
-                            <div className="h-32 w-full overflow-hidden relative bg-slate-100 dark:bg-slate-800">
+                            <div className="h-32 w-full overflow-hidden relative bg-slate-950 flex items-center justify-center">
+                              {page.bannerImage && (
+                                <img src={page.bannerImage} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                              )}
                               <img
                                 src={page.bannerImage || undefined}
                                 alt={page.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                               />
                             </div>
                           ) : null}
@@ -4284,11 +4277,18 @@ Status: VERIFIED & SECURED (DIGITALLY SIGNED)
 
               {/* Full Screen Header Banner Image */}
               {selectedInfoPage.bannerImage || selectedInfoPage.featuredImage ? (
-                <div className="w-full h-48 sm:h-64 relative bg-slate-900 overflow-hidden">
+                <div className="w-full h-48 sm:h-64 relative bg-slate-950 overflow-hidden flex items-center justify-center">
+                  {(selectedInfoPage.bannerImage || selectedInfoPage.featuredImage) && (
+                    <img
+                      src={selectedInfoPage.bannerImage || selectedInfoPage.featuredImage}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 pointer-events-none"
+                    />
+                  )}
                   <img
                     src={selectedInfoPage.bannerImage || selectedInfoPage.featuredImage || undefined}
                     alt={selectedInfoPage.title}
-                    className="w-full h-full object-cover opacity-90"
+                    className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
                   <div className="absolute bottom-4 left-4 right-4 text-white space-y-1">
@@ -4480,10 +4480,13 @@ Status: VERIFIED & SECURED (DIGITALLY SIGNED)
                       }}
                       className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-md transition-all flex gap-3 p-3 cursor-pointer group hover:border-emerald-500/40"
                     >
-                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-800 relative">
+                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden flex-shrink-0 bg-slate-950 border border-slate-800 relative flex items-center justify-center">
+                        {item.images?.[0] && (
+                          <img src={item.images[0]} className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none" alt="" />
+                        )}
                         <img
                           src={item.images?.[0] || 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&q=80&w=800'}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                           alt={item.name}
                         />
                         {item.images && item.images.length > 1 && (
@@ -4573,10 +4576,17 @@ Status: VERIFIED & SECURED (DIGITALLY SIGNED)
               {/* Gallery / Images */}
               {selectedPersonality.images && selectedPersonality.images.length > 0 && (
                 <div className="space-y-2">
-                  <div className="h-56 sm:h-72 rounded-2xl overflow-hidden shadow-md relative bg-slate-950 group border border-slate-800">
+                  <div className="h-56 sm:h-72 rounded-2xl overflow-hidden shadow-md relative bg-slate-950 group border border-slate-800 flex items-center justify-center">
+                    {(selectedPersonality.images[activePersonalityImageIndex] || selectedPersonality.images[0]) && (
+                      <img
+                        src={selectedPersonality.images[activePersonalityImageIndex] || selectedPersonality.images[0]}
+                        className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 pointer-events-none"
+                        alt=""
+                      />
+                    )}
                     <img
                       src={selectedPersonality.images[activePersonalityImageIndex] || selectedPersonality.images[0]}
-                      className="w-full h-full object-cover"
+                      className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                       alt={selectedPersonality.name}
                     />
                     {selectedPersonality.images.length > 1 && (
@@ -4913,6 +4923,9 @@ Status: VERIFIED & SECURED (DIGITALLY SIGNED)
         </div>
       )}
 
+
+      {/* ==================== GLOBAL ADHAN PRAYER ALARM LOCAL NOTIFICATION MODAL ==================== */}
+      <AdhanAlarmModal isUr={isUr} />
 
       {/* ==================== GLOBAL AI VOICE PLAYER BOTTOM FLOATING COMPONENT ==================== */}
       <VoicePlayer 

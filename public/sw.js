@@ -1,17 +1,54 @@
-const CACHE_NAME = 'halqa-static-v2';
-const IMAGE_CACHE = 'halqa-images-v2';
-const API_CACHE = 'halqa-api-v2';
+const CACHE_NAME = 'halqa-static-v3';
+const IMAGE_CACHE = 'halqa-images-v3';
+const API_CACHE = 'halqa-api-v3';
+const PRAYER_QIBLA_CACHE = 'halqa-prayer-qibla-v3';
 
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
+  '/splash.jpg',
+  '/app-logo.jpg',
+  '/logo.jpg'
 ];
+
+// Fallback Prayer Timings response if offline and specific URL not cached
+const DEFAULT_OFFLINE_PRAYER_JSON = {
+  code: 200,
+  status: "OK",
+  data: {
+    timings: {
+      Fajr: "04:25",
+      Sunrise: "05:48",
+      Dhuhr: "12:35",
+      Asr: "16:05",
+      Sunset: "19:18",
+      Maghrib: "19:18",
+      Isha: "20:42",
+      Imsak: "04:15",
+      Midnight: "00:35"
+    },
+    date: {
+      readable: "11 Aug 2026",
+      timestamp: "1786450000",
+      hijri: {
+        day: "27",
+        month: { number: 2, en: "Safar", ar: "صفر" },
+        year: "1448"
+      }
+    },
+    meta: {
+      latitude: 24.8607,
+      longitude: 67.0011,
+      timezone: "Asia/Karachi"
+    }
+  }
+};
 
 // Install Event - Pre-cache shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Pre-caching static app shell');
+      console.log('[Service Worker] Pre-caching static app shell & offline assets');
       return cache.addAll(PRECACHE_ASSETS);
     }).then(() => self.skipWaiting())
   );
@@ -23,7 +60,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE && cacheName !== API_CACHE) {
+          if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE && cacheName !== API_CACHE && cacheName !== PRAYER_QIBLA_CACHE) {
             console.log('[Service Worker] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -43,8 +80,48 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy 1: Prayer Timings API and other APIs (Network First, with Fallback to Cache)
-  if (url.hostname.includes('api.aladhan.com') || url.pathname.startsWith('/api/')) {
+  // Strategy 1: Prayer Timings & Qibla Data APIs (Stale-While-Revalidate with Offline Fallback)
+  if (url.hostname.includes('api.aladhan.com') || url.pathname.includes('/timings') || url.pathname.includes('/calendar')) {
+    event.respondWith(
+      caches.open(PRAYER_QIBLA_CACHE).then(async (cache) => {
+        const cachedResponse = await cache.match(request);
+
+        // Fetch fresh data in background/foreground
+        const fetchPromise = fetch(request)
+          .then((networkResponse) => {
+            if (networkResponse.status === 200) {
+              cache.put(request, networkResponse.clone());
+            }
+            return networkResponse;
+          })
+          .catch(async () => {
+            console.log('[Service Worker] Offline fallback for Prayer API:', url.href);
+            // If specific request is in cache, return it
+            if (cachedResponse) return cachedResponse;
+
+            // Otherwise check if any cached prayer response exists in PRAYER_QIBLA_CACHE
+            const keys = await cache.keys();
+            if (keys.length > 0) {
+              const anyCached = await cache.match(keys[0]);
+              if (anyCached) return anyCached;
+            }
+
+            // Fallback JSON response if completely offline and no match
+            return new Response(JSON.stringify(DEFAULT_OFFLINE_PRAYER_JSON), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          });
+
+        // Return cached response instantly if available, otherwise wait for network/fallback
+        return cachedResponse || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Strategy 2: General Backend APIs (Network First with Cache Fallback)
+  if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -57,14 +134,14 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          console.log('[Service Worker] Serving API request from cache:', url.pathname);
+          console.log('[Service Worker] Serving general API request from cache:', url.pathname);
           return caches.match(request);
         })
     );
     return;
   }
 
-  // Strategy 2: Images (Cache First, with Network Fallback & update cache)
+  // Strategy 3: Images (Cache First, with Network Fallback & background update)
   const isImage = 
     request.destination === 'image' || 
     url.hostname.includes('images.unsplash.com') ||
@@ -74,7 +151,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Serve from cache, but fetch fresh image in background to update cache (Stale-While-Revalidate)
           fetch(request)
             .then((networkResponse) => {
               if (networkResponse.status === 200) {
@@ -83,11 +159,10 @@ self.addEventListener('fetch', (event) => {
                 });
               }
             })
-            .catch((err) => console.log('[Service Worker] Background fetch failed for image:', url.href, err));
+            .catch(() => {});
           return cachedResponse;
         }
 
-        // Not in cache, fetch from network and put in cache
         return fetch(request)
           .then((networkResponse) => {
             if (networkResponse.status === 200 || networkResponse.type === 'opaque') {
@@ -106,13 +181,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy 3: App Shell & Static Assets (Network First, falling back to Cache)
-  // This is highly resilient, ensuring that the latest edits from AI Studio are fetched immediately,
-  // while offline support works perfectly when connection is lost.
+  // Strategy 4: App Shell & Static Assets (Network First, falling back to Cache)
   event.respondWith(
     fetch(request)
       .then((networkResponse) => {
-        // Cache valid responses
         if (networkResponse.status === 200) {
           const responseClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -127,7 +199,6 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          // If the root or index page fails and isn't matched exactly, fallback to root
           if (request.mode === 'navigate') {
             return caches.match('/');
           }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SpiritualPersonality } from '../../types';
 import { Plus, Edit2, Trash2, Eye, EyeOff, Image as ImageIcon, Music, Video, FileText, Check, X, UserCheck } from 'lucide-react';
 import { DeleteConfirmModal } from '../DeleteConfirmModal';
+import { GoogleDriveLinkInput } from '../GoogleDriveLinkInput';
 
 interface SpiritualPersonalitiesManagerProps {
   personalities: SpiritualPersonality[];
@@ -316,15 +317,12 @@ export const SpiritualPersonalitiesManager: React.FC<SpiritualPersonalitiesManag
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-300 flex items-center gap-1 mb-1">
-                <FileText size={12} className="text-blue-400" /> PDF URL (رسائل و کتب)
-              </label>
-              <input
-                type="url"
-                placeholder="https://.../document.pdf"
+              <GoogleDriveLinkInput
+                label="PDF URL (رسائل و کتب)"
+                placeholder="Paste Google Drive URL or direct PDF link..."
                 value={pdfUrl}
-                onChange={(e) => setPdfUrl(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-emerald-500 outline-none font-mono"
+                onChange={(url) => setPdfUrl(url)}
+                expectedType="pdf"
               />
             </div>
           </div>

@@ -1,5 +1,4 @@
-import React, { useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
+import React, { useState } from 'react';
 import { Share as CapacitorShare } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { 
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react';
 import { PrayerTimings, HadeesItem } from '../types';
 import { dailyHadeesCollection } from '../data';
+import { generatePrayerCardCanvasJPEG } from '../lib/prayerCardCanvasGenerator';
 
 export interface ShareCardProps {
   isUr: boolean;
@@ -45,8 +45,8 @@ interface PrayerCardContentProps {
 
 /**
  * Unified Prayer Card Inner Component
- * Renders identically in both Preview Modal and html2canvas Image Capture.
- * Designed with explicit inline colors & exact typographic constraints for 100% html2canvas fidelity.
+ * Renders cleanly in Preview Modal.
+ * Designed with explicit inline colors & exact typographic constraints matching output JPEG.
  */
 const PrayerCardContent: React.FC<PrayerCardContentProps> = ({
   isUr,
@@ -77,22 +77,22 @@ const PrayerCardContent: React.FC<PrayerCardContentProps> = ({
         
         {/* Header Section: Organization Branding */}
         <div 
-          className="rounded-2xl p-3 text-center space-y-1.5 shadow-md border"
+          className="rounded-2xl p-4 text-center space-y-2 shadow-md border relative z-10"
           style={{ backgroundColor: '#022c22', borderColor: '#f59e0b' }}
         >
-          <div className="flex items-center justify-center gap-2">
-            <Sparkles size={18} style={{ color: '#f59e0b' }} className="shrink-0" />
+          <div className="flex items-center justify-center gap-2 px-2">
+            <Sparkles size={20} style={{ color: '#f59e0b' }} className="shrink-0" />
             <h2 
-              className="font-nastaliq text-xl sm:text-2xl font-bold text-center leading-tight" 
+              className="font-nastaliq text-2xl sm:text-3xl font-bold text-center leading-normal whitespace-normal break-words px-1" 
               dir="rtl" 
               style={{ color: '#f59e0b', fontFamily: "'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif" }}
             >
               حلقہ عثمانیہ محمدیہ رشیدیہ قدیریہ
             </h2>
-            <Sparkles size={18} style={{ color: '#f59e0b' }} className="shrink-0" />
+            <Sparkles size={20} style={{ color: '#f59e0b' }} className="shrink-0" />
           </div>
           <p 
-            className="font-english text-xs font-bold tracking-widest uppercase text-center" 
+            className="font-english text-xs sm:text-sm font-extrabold tracking-widest uppercase text-center whitespace-normal break-words px-2" 
             style={{ color: '#a7f3d0', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}
           >
             Halqa E Usmania Muhammadia Rasheedia Qadeeriya
@@ -286,7 +286,7 @@ const PrayerCardContent: React.FC<PrayerCardContentProps> = ({
           {/* Arabic Text in Muhammadi Quranic / Amiri font */}
           {activeHadith.arabicText && (
             <p 
-              className="text-2xl sm:text-3xl font-bold text-center leading-loose py-2 tracking-normal" 
+              className="text-2xl sm:text-3xl font-bold text-center leading-loose py-2 tracking-normal whitespace-normal break-words px-2" 
               dir="rtl" 
               style={{ color: '#f59e0b', fontFamily: "'Muhammadi Quranic', 'Amiri', 'Scheherazade New', 'Noto Naskh Arabic', serif" }}
             >
@@ -296,7 +296,7 @@ const PrayerCardContent: React.FC<PrayerCardContentProps> = ({
 
           {/* Urdu/English Translation in Noori Nastaleeq font */}
           <p 
-            className="text-lg text-center leading-relaxed font-medium" 
+            className="text-lg text-center leading-relaxed font-medium whitespace-normal break-words px-2" 
             style={{ 
               color: '#ecfdf5', 
               fontFamily: isUr ? "'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif" : "'Plus Jakarta Sans', system-ui, sans-serif" 
@@ -351,7 +351,6 @@ export const ShareCard: React.FC<ShareCardProps> = ({
   contactNumber = '+92 311 4992292',
   buttonClassName = ''
 }) => {
-  const cardRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
@@ -392,327 +391,25 @@ export const ShareCard: React.FC<ShareCardProps> = ({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Helper to convert oklab CSS color values mathematically to standard rgb/rgba
-  const oklabToRgb = (oklabStr: string): string => {
-    try {
-      const match = oklabStr.match(/oklab\s*\(\s*([^)]+)\s*\)/i);
-      if (!match) return '#10b981';
-
-      const content = match[1].trim();
-      const slashParts = content.split('/');
-      const colorPart = slashParts[0].trim().replace(/,/g, ' ');
-      const alphaPart = slashParts[1] ? slashParts[1].trim() : null;
-
-      const parts = colorPart.split(/\s+/).filter(Boolean);
-      if (parts.length < 3) return '#10b981';
-
-      let L_val = parts[0];
-      let a_val = parts[1];
-      let b_val = parts[2];
-
-      let L = L_val.endsWith('%') ? parseFloat(L_val) / 100 : parseFloat(L_val);
-      let a = a_val.endsWith('%') ? (parseFloat(a_val) / 100) * 0.4 : parseFloat(a_val);
-      let b = b_val.endsWith('%') ? (parseFloat(b_val) / 100) * 0.4 : parseFloat(b_val);
-
-      if (isNaN(L)) L = 0.5;
-      if (isNaN(a)) a = 0;
-      if (isNaN(b)) b = 0;
-
-      let alpha = 1;
-      if (alphaPart) {
-        alpha = alphaPart.endsWith('%') ? parseFloat(alphaPart) / 100 : parseFloat(alphaPart);
-        if (isNaN(alpha)) alpha = 1;
-      } else if (parts[3]) {
-        alpha = parts[3].endsWith('%') ? parseFloat(parts[3]) / 100 : parseFloat(parts[3]);
-        if (isNaN(alpha)) alpha = 1;
-      }
-
-      // Convert OKLAB to Linear RGB
-      const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
-      const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
-      const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
-
-      const l = l_ ** 3;
-      const m = m_ ** 3;
-      const s = s_ ** 3;
-
-      const r_lin = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
-      const g_lin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
-      const b_lin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
-
-      const transfer = (c: number) =>
-        c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(Math.max(0, c), 1 / 2.4) - 0.055;
-
-      const r = Math.min(255, Math.max(0, Math.round(transfer(r_lin) * 255)));
-      const g = Math.min(255, Math.max(0, Math.round(transfer(g_lin) * 255)));
-      const blue = Math.min(255, Math.max(0, Math.round(transfer(b_lin) * 255)));
-
-      if (alpha < 1) {
-        return `rgba(${r}, ${g}, ${blue}, ${alpha.toFixed(3)})`;
-      }
-      return `rgb(${r}, ${g}, ${blue})`;
-    } catch (err) {
-      return '#10b981';
-    }
-  };
-
-  // Helper to convert oklch CSS color values mathematically to standard rgb/rgba
-  const oklchToRgb = (oklchStr: string): string => {
-    try {
-      const match = oklchStr.match(/oklch\s*\(\s*([^)]+)\s*\)/i);
-      if (!match) return '#10b981';
-
-      const content = match[1].trim();
-      const slashParts = content.split('/');
-      const colorPart = slashParts[0].trim().replace(/,/g, ' ');
-      const alphaPart = slashParts[1] ? slashParts[1].trim() : null;
-
-      const parts = colorPart.split(/\s+/).filter(Boolean);
-      if (parts.length < 3) return '#10b981';
-
-      let L_val = parts[0];
-      let C_val = parts[1];
-      let H_val = parts[2];
-
-      let L = L_val.endsWith('%') ? parseFloat(L_val) / 100 : parseFloat(L_val);
-      let C = C_val === 'none' ? 0 : (C_val.endsWith('%') ? (parseFloat(C_val) / 100) * 0.4 : parseFloat(C_val));
-      let H = H_val === 'none' ? 0 : parseFloat(H_val);
-
-      if (isNaN(L)) L = 0.5;
-      if (isNaN(C)) C = 0;
-      if (isNaN(H)) H = 0;
-
-      let alpha = 1;
-      if (alphaPart) {
-        alpha = alphaPart.endsWith('%') ? parseFloat(alphaPart) / 100 : parseFloat(alphaPart);
-        if (isNaN(alpha)) alpha = 1;
-      } else if (parts[3]) {
-        alpha = parts[3].endsWith('%') ? parseFloat(parts[3]) / 100 : parseFloat(parts[3]);
-        if (isNaN(alpha)) alpha = 1;
-      }
-
-      // Convert OKLCH to OKLAB
-      const rad = (H * Math.PI) / 180;
-      const lab_a = C * Math.cos(rad);
-      const lab_b = C * Math.sin(rad);
-
-      // Convert OKLAB to Linear RGB
-      const l_ = L + 0.3963377774 * lab_a + 0.2158037573 * lab_b;
-      const m_ = L - 0.1055613458 * lab_a - 0.0638541728 * lab_b;
-      const s_ = L - 0.0894841775 * lab_a - 1.2914855480 * lab_b;
-
-      const l = l_ ** 3;
-      const m = m_ ** 3;
-      const s = s_ ** 3;
-
-      const r_lin = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
-      const g_lin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
-      const b_lin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
-
-      const transfer = (c: number) =>
-        c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(Math.max(0, c), 1 / 2.4) - 0.055;
-
-      const r = Math.min(255, Math.max(0, Math.round(transfer(r_lin) * 255)));
-      const g = Math.min(255, Math.max(0, Math.round(transfer(g_lin) * 255)));
-      const blue = Math.min(255, Math.max(0, Math.round(transfer(b_lin) * 255)));
-
-      if (alpha < 1) {
-        return `rgba(${r}, ${g}, ${blue}, ${alpha.toFixed(3)})`;
-      }
-      return `rgb(${r}, ${g}, ${blue})`;
-    } catch (err) {
-      return '#10b981';
-    }
-  };
-
-  // Replace unsupported CSS color functions (oklab, oklch, color(srgb...)) with rgb/rgba
-  const replaceColorFunctions = (cssText: string): string => {
-    if (!cssText) return cssText;
-    
-    let result = cssText;
-    
-    // Replace oklab(...)
-    result = result.replace(/oklab\s*\([^)]+\)/gi, (match) => oklabToRgb(match));
-    
-    // Replace oklch(...)
-    result = result.replace(/oklch\s*\([^)]+\)/gi, (match) => oklchToRgb(match));
-
-    // Fallbacks for color(srgb ...)
-    result = result.replace(/color\s*\(\s*srgb\s+[^)]+\)/gi, '#10b981');
-      
-    return result;
-  };
-
-  // Generate JPEG Blob and Data URI from the reference card element
-  const generateCardImage = async (): Promise<{ blob: Blob; dataUrl: string } | null> => {
-    if (!cardRef.current) return null;
-    try {
-      // Ensure all custom fonts are completely loaded before capturing
-      if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-      }
-
-      // Brief delay for font rendering pass
-      await new Promise((resolve) => setTimeout(resolve, 150));
-
-      const canvas = await html2canvas(cardRef.current, {
-        scale: 2, // High resolution output
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#020617', // Deep Islamic background
-        logging: false,
-        onclone: (clonedDoc) => {
-          // Ensure cloned card root is 100% visible
-          const clonedCardRoot = clonedDoc.getElementById('share-card-capture-root');
-          if (clonedCardRoot) {
-            clonedCardRoot.style.opacity = '1';
-            clonedCardRoot.style.visibility = 'visible';
-            if (clonedCardRoot.parentElement) {
-              clonedCardRoot.parentElement.style.opacity = '1';
-              clonedCardRoot.parentElement.style.visibility = 'visible';
-            }
-          }
-
-          // 1. Proxy getComputedStyle on clonedDoc.defaultView to intercept any oklab/oklch queries
-          if (clonedDoc.defaultView) {
-            const origGetComputedStyle = clonedDoc.defaultView.getComputedStyle.bind(clonedDoc.defaultView);
-            clonedDoc.defaultView.getComputedStyle = (elt: Element, pseudoElt?: string | null) => {
-              const style = origGetComputedStyle(elt, pseudoElt);
-              return new Proxy(style, {
-                get(target, prop, receiver) {
-                  if (prop === 'getPropertyValue') {
-                    return (property: string) => {
-                      const res = target.getPropertyValue(property);
-                      if (typeof res === 'string' && /(oklab|oklch|color\()/i.test(res)) {
-                        return replaceColorFunctions(res);
-                      }
-                      return res;
-                    };
-                  }
-                  const val = Reflect.get(target, prop, receiver);
-                  if (typeof val === 'string' && /(oklab|oklch|color\()/i.test(val)) {
-                    return replaceColorFunctions(val);
-                  }
-                  if (typeof val === 'function') {
-                    return val.bind(target);
-                  }
-                  return val;
-                }
-              });
-            };
-          }
-
-          // 2. Process all <style> elements in clonedDoc and replace node so CSSStyleSheet rules are re-parsed
-          const styleTags = Array.from(clonedDoc.getElementsByTagName('style'));
-          styleTags.forEach((oldStyle) => {
-            if (oldStyle.textContent) {
-              const sanitizedText = replaceColorFunctions(oldStyle.textContent);
-              const newStyle = clonedDoc.createElement('style');
-              newStyle.textContent = sanitizedText;
-              if (oldStyle.parentNode) {
-                oldStyle.parentNode.replaceChild(newStyle, oldStyle);
-              }
-            }
-          });
-
-          // 3. Convert link stylesheets into inline style tags and replace oklch/oklab or strip if inaccessible
-          const linkTags = Array.from(clonedDoc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'));
-          linkTags.forEach((link) => {
-            try {
-              const sheet = link.sheet as CSSStyleSheet | null;
-              if (sheet && sheet.cssRules) {
-                const cssTexts: string[] = [];
-                for (let i = 0; i < sheet.cssRules.length; i++) {
-                  cssTexts.push(sheet.cssRules[i].cssText);
-                }
-                const sanitizedText = replaceColorFunctions(cssTexts.join('\n'));
-                const newStyle = clonedDoc.createElement('style');
-                newStyle.textContent = sanitizedText;
-                if (link.parentNode) {
-                  link.parentNode.replaceChild(newStyle, link);
-                }
-              } else {
-                link.parentNode?.removeChild(link);
-              }
-            } catch (e) {
-              link.parentNode?.removeChild(link);
-            }
-          });
-
-          // 4. Inlining explicit sanitized computed styles from live DOM to cloned DOM
-          if (cardRef.current) {
-            const origCard = cardRef.current;
-            if (clonedCardRoot) {
-              const origElements = [origCard, ...Array.from(origCard.querySelectorAll<HTMLElement>('*'))];
-              const cloneElements = [clonedCardRoot, ...Array.from(clonedCardRoot.querySelectorAll<HTMLElement>('*'))];
-
-              const propsToInline = [
-                'color',
-                'backgroundColor',
-                'borderColor',
-                'borderTopColor',
-                'borderRightColor',
-                'borderBottomColor',
-                'borderLeftColor',
-                'boxShadow',
-                'fill',
-                'stroke',
-                'outlineColor',
-                'textDecorationColor'
-              ];
-
-              for (let i = 0; i < origElements.length && i < cloneElements.length; i++) {
-                const origEl = origElements[i];
-                const cloneEl = cloneElements[i];
-                const computed = window.getComputedStyle(origEl);
-
-                propsToInline.forEach((prop) => {
-                  const val = (computed as any)[prop];
-                  if (val && typeof val === 'string' && val !== 'none' && val !== 'transparent') {
-                    if (/(oklab|oklch|color\()/i.test(val)) {
-                      (cloneEl.style as any)[prop] = replaceColorFunctions(val);
-                    } else if (!cloneEl.style.getPropertyValue(prop)) {
-                      (cloneEl.style as any)[prop] = val;
-                    }
-                  }
-                });
-              }
-            }
-          }
-
-          // 5. Sanitize any remaining inline style attributes on cloned elements
-          const allElements = Array.from(clonedDoc.querySelectorAll<HTMLElement>('*'));
-          allElements.forEach((el) => {
-            if (el.style && el.style.cssText && /(oklch|oklab|color\()/i.test(el.style.cssText)) {
-              el.style.cssText = replaceColorFunctions(el.style.cssText);
-            }
-          });
-        }
-      });
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-      return new Promise((resolve) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve({ blob, dataUrl });
-          } else {
-            resolve(null);
-          }
-        }, 'image/jpeg', 0.95);
-      });
-    } catch (err) {
-      console.error('html2canvas capture error:', err);
-      return null;
-    }
-  };
-
-  // Perform Native Share / Web Share / File Share
+  // Perform Native Share / Web Share / File Share via Direct HTML5 Canvas Generator
   const handleShare = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
 
     try {
-      const result = await generateCardImage();
+      const result = await generatePrayerCardCanvasJPEG({
+        isUr,
+        cityName,
+        todayFormatted,
+        displayHijri,
+        appName,
+        contactNumber,
+        sehriTime,
+        iftarTime,
+        activeTimings,
+        activeHadith
+      });
+
       if (!result) {
         showToast(isUr ? 'کارڈ تیار کرنے میں خطاء ہوئی۔ دوبارہ کوشش کریں۔' : 'Failed to generate card image.');
         setIsGenerating(false);
@@ -767,12 +464,12 @@ export const ShareCard: React.FC<ShareCardProps> = ({
         } catch (shareErr: any) {
           if (shareErr.name !== 'AbortError') {
             console.warn('Web Share aborted or failed, downloading JPEG file', shareErr);
-            triggerFallbackDownload(blob, fileName, dataUrl);
+            triggerFallbackDownload(blob, fileName);
           }
         }
       } else {
         // Fallback: Download JPEG & notify user
-        triggerFallbackDownload(blob, fileName, dataUrl);
+        triggerFallbackDownload(blob, fileName);
       }
     } catch (error) {
       console.error('Share action error:', error);
@@ -782,7 +479,7 @@ export const ShareCard: React.FC<ShareCardProps> = ({
     }
   };
 
-  const triggerFallbackDownload = (blob: Blob, fileName: string, dataUrl: string) => {
+  const triggerFallbackDownload = (blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -882,32 +579,6 @@ export const ShareCard: React.FC<ShareCardProps> = ({
           </div>
         </div>
       )}
-
-      {/* OFF-SCREEN CAPTURE DIV FOR HTML2CANVAS */}
-      <div 
-        style={{
-          position: 'absolute',
-          top: '-9999px',
-          left: '-9999px',
-          width: '600px',
-          overflow: 'hidden'
-        }}
-      >
-        <div ref={cardRef} id="share-card-capture-root" style={{ width: '600px', backgroundColor: '#020617' }}>
-          <PrayerCardContent
-            isUr={isUr}
-            cityName={cityName}
-            todayFormatted={todayFormatted}
-            displayHijri={displayHijri}
-            appName={appName}
-            contactNumber={contactNumber}
-            sehriTime={sehriTime}
-            iftarTime={iftarTime}
-            activeTimings={activeTimings}
-            activeHadith={activeHadith}
-          />
-        </div>
-      </div>
 
       {/* Toast Notification */}
       {toastMessage && (

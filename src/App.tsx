@@ -328,6 +328,19 @@ export default function App() {
       }
     }
 
+    // 3. Unlock Web Audio Context / HTML Audio Element for smooth background recitation & alarm playback
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      const dummyAudio = new Audio();
+      dummyAudio.volume = 0;
+      dummyAudio.play().catch(() => {});
+    } catch (e) {
+      console.warn("Audio Context unlock notice:", e);
+    }
+
     // Save decision permanently to localStorage so user is never asked again!
     setUserSettings((prev) => ({
       ...prev,
@@ -353,7 +366,22 @@ export default function App() {
   // Post-Splash Screens State
   const [postSplashScreens, setPostSplashScreens] = useState<PostSplashScreenItem[]>(() => {
     const saved = localStorage.getItem('hu_post_splash_screens');
-    return saved ? JSON.parse(saved) : initialPostSplashScreens;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: PostSplashScreenItem) => {
+            if (item.imageUrl && item.imageUrl.includes('photo-1542838132-92c53300491e')) {
+              return { ...item, imageUrl: '' };
+            }
+            return item;
+          });
+        }
+      } catch (e) {
+        console.warn('Error parsing hu_post_splash_screens from localStorage:', e);
+      }
+    }
+    return initialPostSplashScreens;
   });
 
   useEffect(() => {
@@ -363,7 +391,13 @@ export default function App() {
   useEffect(() => {
     const unsub = subscribeToPostSplashScreens((screensFromDb) => {
       if (screensFromDb && screensFromDb.length > 0) {
-        setPostSplashScreens(dedupeById(screensFromDb));
+        const cleaned = screensFromDb.map((item) => {
+          if (item.imageUrl && item.imageUrl.includes('photo-1542838132-92c53300491e')) {
+            return { ...item, imageUrl: '' };
+          }
+          return item;
+        });
+        setPostSplashScreens(dedupeById(cleaned));
       }
     });
     return () => unsub();
@@ -635,6 +669,57 @@ export default function App() {
     } catch (err) {
       console.error('Error approving user in Firestore:', err);
     }
+  };
+
+  const handleBulkApproveUsers = async (
+    userIds: string[],
+    assignedRole?: AppUser['role'],
+    assignedBranchCodeOrId?: string
+  ) => {
+    let currentUsersList = [...appUsers];
+    const approvedCount = userIds.length;
+
+    for (const userId of userIds) {
+      const targetUser = currentUsersList.find((u) => u.id === userId);
+      if (!targetUser) continue;
+
+      const branch =
+        assignedBranchCodeOrId && assignedBranchCodeOrId !== 'keep_original'
+          ? branches.find((b) => b.id === assignedBranchCodeOrId || b.code === assignedBranchCodeOrId) || branches[0]
+          : branches.find((b) => b.id === targetUser.branchId || b.code === targetUser.branchCode) || branches[0];
+
+      const officialUserId = generateUserId(branch.code, currentUsersList);
+
+      const approvedUser: AppUser = {
+        ...targetUser,
+        id: officialUserId,
+        userId: officialUserId,
+        status: 'approved',
+        role: assignedRole || targetUser.role || 'registered_user',
+        branchId: branch.id,
+        branchCode: branch.code,
+        branchName: branch.name
+      };
+
+      try {
+        await addAppUserToFirestore(approvedUser);
+        if (userId !== officialUserId) {
+          await deleteAppUserFromFirestore(userId);
+        }
+        currentUsersList = currentUsersList.filter((u) => u.id !== userId);
+        currentUsersList.push(approvedUser);
+      } catch (err) {
+        console.error(`Error approving user ${userId} in bulk:`, err);
+      }
+    }
+
+    recordAuditLog(
+      'USER_APPROVED',
+      'Admin',
+      `Bulk approved ${approvedCount} user registration requests.`,
+      'HQ01'
+    );
+    triggerSync();
   };
 
   const handleRejectUser = async (userId: string, reason: string) => {
@@ -1953,6 +2038,7 @@ export default function App() {
                 onBulkImportDayRecords={handleBulkImportDatasetRecords}
                 onCreateUser={handleCreateUser}
                 onApproveUser={handleApproveUser}
+                onBulkApproveUsers={handleBulkApproveUsers}
                 onRejectUser={handleRejectUser}
                 onBlockUser={handleBlockUser}
                 onUnblockUser={handleUnblockUser}

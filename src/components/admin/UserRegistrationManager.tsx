@@ -26,6 +26,7 @@ interface UserRegistrationManagerProps {
   appUsers: AppUser[];
   branches: Branch[];
   onApproveUser: (userId: string, assignedRole?: UserRole, assignedBranchId?: string) => void;
+  onBulkApproveUsers?: (userIds: string[], assignedRole?: UserRole, assignedBranchId?: string) => void;
   onRejectUser: (userId: string, reason: string) => void;
   onBlockUser?: (userId: string, reason: string) => void;
   onUnblockUser?: (userId: string) => void;
@@ -38,6 +39,7 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
   appUsers,
   branches,
   onApproveUser,
+  onBulkApproveUsers,
   onRejectUser,
   onBlockUser = (_userId: string, _reason: string) => {},
   onUnblockUser = (_userId: string) => {},
@@ -48,6 +50,13 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
   const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'rejected' | 'blocked'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState<string>('ALL');
+
+  // Bulk Selection & Approval State
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [showBulkApproveModal, setShowBulkApproveModal] = useState(false);
+  const [bulkBranch, setBulkBranch] = useState<string>('keep_original');
+  const [bulkRole, setBulkRole] = useState<UserRole>('registered_user');
+  const [isProcessingBulk, setIsProcessingBulk] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
@@ -174,6 +183,27 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
   const rejectedCount = appUsers.filter((u) => u.status === 'rejected').length;
   const blockedCount = appUsers.filter((u) => u.status === 'blocked').length;
 
+  const pendingUsersInView = filteredUsers.filter((u) => u.status === 'pending');
+  const isAllPendingSelected =
+    pendingUsersInView.length > 0 &&
+    pendingUsersInView.every((u) => selectedUserIds.includes(u.id));
+
+  const toggleSelectUser = (id: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAllPending = () => {
+    if (isAllPendingSelected) {
+      const pendingIds = new Set(pendingUsersInView.map((u) => u.id));
+      setSelectedUserIds((prev) => prev.filter((id) => !pendingIds.has(id)));
+    } else {
+      const newIds = new Set([...selectedUserIds, ...pendingUsersInView.map((u) => u.id)]);
+      setSelectedUserIds(Array.from(newIds));
+    }
+  };
+
   return (
     <div className="space-y-4 text-left" dir="ltr">
 
@@ -204,7 +234,7 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setActiveTab('pending')}
+            onClick={() => { setActiveTab('pending'); setSelectedUserIds([]); }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'pending'
                 ? 'bg-amber-500 text-slate-950 shadow-md'
@@ -218,7 +248,7 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
           </button>
 
           <button
-            onClick={() => setActiveTab('active')}
+            onClick={() => { setActiveTab('active'); setSelectedUserIds([]); }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'active'
                 ? 'bg-emerald-800 text-white shadow-md'
@@ -232,7 +262,7 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
           </button>
 
           <button
-            onClick={() => setActiveTab('rejected')}
+            onClick={() => { setActiveTab('rejected'); setSelectedUserIds([]); }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'rejected'
                 ? 'bg-red-900 text-white shadow-md'
@@ -246,7 +276,7 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
           </button>
 
           <button
-            onClick={() => setActiveTab('blocked')}
+            onClick={() => { setActiveTab('blocked'); setSelectedUserIds([]); }}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'blocked'
                 ? 'bg-purple-900 text-white shadow-md'
@@ -287,6 +317,45 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
         </div>
       </div>
 
+      {/* Bulk Action Bar for Pending Approvals */}
+      {activeTab === 'pending' && selectedUserIds.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          className="bg-gradient-to-r from-amber-950/90 via-slate-900 to-slate-900 border border-amber-600/50 rounded-2xl p-3 flex flex-col sm:flex-row justify-between items-center gap-3 shadow-xl"
+        >
+          <div className="flex items-center gap-2.5 text-amber-200 text-xs font-bold">
+            <div className="p-1.5 bg-amber-500/20 text-amber-300 rounded-lg">
+              <UserCheck size={18} />
+            </div>
+            <span>
+              {selectedUserIds.length} pending user registration{selectedUserIds.length > 1 ? 's' : ''} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedUserIds([])}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            >
+              Clear Selection
+            </button>
+            <button
+              onClick={() => {
+                setBulkBranch('keep_original');
+                setBulkRole('registered_user');
+                setShowBulkApproveModal(true);
+              }}
+              className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+            >
+              <Check size={16} />
+              <span>Bulk Approve Selected ({selectedUserIds.length})</span>
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Users Table */}
       <AnimatePresence mode="wait">
         <motion.div
@@ -301,6 +370,17 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
             <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950 border-b border-slate-800 uppercase font-mono text-[10px] text-slate-400 tracking-wider">
               <tr>
+                {activeTab === 'pending' && (
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllPendingSelected}
+                      onChange={toggleSelectAllPending}
+                      className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer accent-emerald-500"
+                      title="Select / Deselect all visible pending users"
+                    />
+                  </th>
+                )}
                 <th className="py-3 px-4">User ID / Username</th>
                 <th className="py-3 px-4">Full Name</th>
                 <th className="py-3 px-4">Branch Code</th>
@@ -312,19 +392,29 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
             <tbody className="divide-y divide-slate-800">
               {appUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
+                  <td colSpan={activeTab === 'pending' ? 7 : 6} className="py-8 text-center text-slate-400 font-medium">
                     No registered users available.
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500 italic">
+                  <td colSpan={activeTab === 'pending' ? 7 : 6} className="py-8 text-center text-slate-500 italic">
                     No users found in "{activeTab}" status.
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-800/50 transition-colors">
+                    {activeTab === 'pending' && (
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(u.id)}
+                          onChange={() => toggleSelectUser(u.id)}
+                          className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer accent-emerald-500"
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-4">
                       <div className="font-mono font-bold text-amber-400">
                         {u.userId || 'NOT ASSIGNED'}
@@ -782,6 +872,134 @@ export const UserRegistrationManager: React.FC<UserRegistrationManagerProps> = (
           </motion.div>
         </motion.div>
       )}
+      </AnimatePresence>
+
+      {/* Bulk Approval Modal */}
+      <AnimatePresence>
+        {showBulkApproveModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 12 }}
+              transition={{ duration: 0.18 }}
+              className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 text-left space-y-4 shadow-2xl"
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <UserCheck className="text-emerald-400" size={20} />
+                  <span>Bulk Approve Registrations ({selectedUserIds.length})</span>
+                </h3>
+                <button
+                  onClick={() => setShowBulkApproveModal(false)}
+                  className="text-slate-400 hover:text-white p-1 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-300">
+                You are about to approve <strong className="text-amber-400 font-mono">{selectedUserIds.length}</strong> pending registration request{selectedUserIds.length > 1 ? 's' : ''} in a single batch. Each user will be assigned a unique official User ID automatically.
+              </p>
+
+              {/* Selected Users Preview */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 max-h-36 overflow-y-auto space-y-1 text-xs">
+                <div className="text-[10px] uppercase font-mono text-slate-400 mb-1">Selected Registrations:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedUserIds.map((id) => {
+                    const u = appUsers.find((usr) => usr.id === id);
+                    return u ? (
+                      <span key={id} className="bg-slate-900 border border-slate-800 text-slate-200 px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5">
+                        <span className="font-bold text-emerald-400">{u.fullName}</span>
+                        <span className="text-slate-500 font-mono text-[10px]">(@{u.username})</span>
+                      </span>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+
+              {/* Configuration */}
+              <div className="space-y-3 pt-1">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                    Assign Branch for Selected Users:
+                  </label>
+                  <select
+                    value={bulkBranch}
+                    onChange={(e) => setBulkBranch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="keep_original">Keep Requested Branch (Per User)</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.code}>
+                        {b.code} - {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                    Assign System Role for Selected Users:
+                  </label>
+                  <select
+                    value={bulkRole}
+                    onChange={(e) => setBulkRole(e.target.value as UserRole)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                  >
+                    <option value="registered_user">Registered User (Standard Access)</option>
+                    <option value="murid">Murid / Disciple</option>
+                    <option value="branch_admin">Branch Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end items-center gap-2 pt-3 border-t border-slate-800">
+                <button
+                  onClick={() => setShowBulkApproveModal(false)}
+                  disabled={isProcessingBulk}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    setIsProcessingBulk(true);
+                    if (onBulkApproveUsers) {
+                      await onBulkApproveUsers(selectedUserIds, bulkRole, bulkBranch);
+                    } else {
+                      for (const uid of selectedUserIds) {
+                        const usr = appUsers.find((u) => u.id === uid);
+                        const bCode = bulkBranch === 'keep_original' ? usr?.branchCode || branches[0]?.code || 'HQ01' : bulkBranch;
+                        await onApproveUser(uid, bulkRole, bCode);
+                      }
+                    }
+                    setIsProcessingBulk(false);
+                    setSelectedUserIds([]);
+                    setShowBulkApproveModal(false);
+                  }}
+                  disabled={isProcessingBulk}
+                  className="px-5 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isProcessingBulk ? (
+                    <span>Approving Batch...</span>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      <span>Confirm Bulk Approve ({selectedUserIds.length})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
     </div>

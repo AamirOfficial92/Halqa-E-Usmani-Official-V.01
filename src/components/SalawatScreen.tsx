@@ -16,7 +16,7 @@ const DEFAULT_POST_SPLASH_SCREEN: PostSplashScreenItem = {
   bismillahText: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
   mainArabicText: 'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَعَلَى آلِ سَيِّدِنَا مُحَمَّدٍ عَدَدَ كُلِّ شَيْءٍ مَعْلُومٍ لَكَ، رَبِّ أَرِنِي بِجَمَالِكَ وَجَمَالَهَا يَا رَسُولَ اللَّهِ، يَا حَبِيبَ اللَّهِ، يَا خَيْرَ خَلْقِ اللَّهِ، يَا نُورَ عَرْشِ اللَّهِ، يَا نُوراً مِنْ نُورِ اللَّهِ، مُحَمَّدْ رَسُولُ اللَّهِ، صَلَّى اللَّهُ تَعَالَى عَلَيْهِ وَسَلَّمَ، يَا زَيْنَا، يَا زَيْنَا۔',
   urduTranslation: 'اللہ تعالیٰ ہمیں حضور نبی کریم ﷺ کی سچی محبت، ادب، اتباع اور شفاعت نصیب فرمائے، اور دنیا و آخرت میں آپ ﷺ کی رضا و قرب عطا فرمائے۔ آمین یا رب العالمین۔',
-  imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1200',
+  imageUrl: '',
   durationSeconds: 15,
   isEnabled: true,
   order: 1
@@ -110,7 +110,7 @@ export const SalawatScreen: React.FC<SalawatScreenProps> = ({
       className="fixed inset-0 z-50 bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 text-white flex flex-col justify-between p-4 sm:p-8 select-none overflow-y-auto"
     >
       {/* Decorative Custom Image or Ambient Background Glow */}
-      {currentScreen.imageUrl ? (
+      {currentScreen.imageUrl && currentScreen.imageUrl.trim() !== '' ? (
         <div className="absolute inset-0 z-0 opacity-20 pointer-events-none overflow-hidden">
           <img
             src={currentScreen.imageUrl}
@@ -170,16 +170,21 @@ export const SalawatScreen: React.FC<SalawatScreenProps> = ({
         </div>
 
         {/* Optional Image Banner if provided */}
-        {currentScreen.imageUrl && (
+        {currentScreen.imageUrl && currentScreen.imageUrl.trim() !== '' && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-h-48 sm:max-h-64 rounded-2xl overflow-hidden border border-amber-400/40 shadow-xl mx-auto"
+            className="w-full h-48 sm:h-64 rounded-2xl overflow-hidden border border-amber-400/40 shadow-xl mx-auto bg-slate-950 flex items-center justify-center relative"
           >
             <img
               src={currentScreen.imageUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 pointer-events-none"
+            />
+            <img
+              src={currentScreen.imageUrl}
               alt={currentScreen.title}
-              className="w-full h-full object-cover"
+              className="relative z-10 max-h-48 sm:max-h-64 w-auto max-w-full object-contain mx-auto"
             />
           </motion.div>
         )}

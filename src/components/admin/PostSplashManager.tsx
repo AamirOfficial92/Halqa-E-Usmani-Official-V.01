@@ -32,9 +32,9 @@ interface PostSplashManagerProps {
 }
 
 const PRESET_BACKGROUNDS = [
-  { label: 'Mosque Illuminated', url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1200' },
-  { label: 'Islamic Calligraphy', url: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&q=80&w=1200' },
-  { label: 'Spiritual Shrine', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=1200' },
+  { label: 'Mosque Illuminated', url: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&q=80&w=1200' },
+  { label: 'Medina Nabawi Sharif', url: 'https://images.unsplash.com/photo-1590076175571-4b5459efb08c?auto=format&fit=crop&q=80&w=1200' },
+  { label: 'Spiritual Shrine', url: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&q=80&w=1200' },
   { label: 'Minimal Emerald Pattern', url: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=1200' },
 ];
 
@@ -54,7 +54,7 @@ export const PostSplashManager: React.FC<PostSplashManagerProps> = ({
     bismillahText: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
     mainArabicText: 'اللَّهُمَّ صَلِّ عَلَى سَيِّدِنَا مُحَمَّدٍ وَعَلَى آلِ سَيِّدِنَا مُحَمَّدٍ عَدَدَ كُلِّ شَيْءٍ مَعْلُومٍ لَكَ، رَبِّ أَرِنِي بِجَمَالِكَ وَجَمَالَهَا يَا رَسُولَ اللَّهِ، يَا حَبِيبَ اللَّهِ، يَا خَيْرَ خَلْقِ اللَّهِ، يَا نُورَ عَرْشِ اللَّهِ، يَا نُوراً مِنْ نُورِ اللَّهِ، مُحَمَّدْ رَسُولُ اللَّهِ، صَلَّى اللَّهُ تَعَالَى عَلَيْهِ وَسَلَّمَ، يَا زَيْنَا، يَا زَيْنَا۔',
     urduTranslation: 'اللہ تعالیٰ ہمیں حضور نبی کریم ﷺ کی سچی محبت، ادب، اتباع اور شفاعت نصیب فرمائے، اور دنیا و آخرت میں آپ ﷺ کی رضا و قرب عطا فرمائے۔ آمین یا رب العالمین۔',
-    imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1200',
+    imageUrl: '',
     durationSeconds: 15,
     isEnabled: true,
     order: (postSplashScreens.length || 0) + 1
@@ -76,7 +76,7 @@ export const PostSplashManager: React.FC<PostSplashManagerProps> = ({
       bismillahText: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
       mainArabicText: '',
       urduTranslation: '',
-      imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1200',
+      imageUrl: '',
       durationSeconds: 15,
       isEnabled: true,
       order: (postSplashScreens.length || 0) + 1
@@ -350,6 +350,17 @@ export const PostSplashManager: React.FC<PostSplashManagerProps> = ({
             {/* Quick Preset Images */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
               <span className="text-[10px] text-slate-400 font-bold shrink-0">Presets:</span>
+              <button
+                type="button"
+                onClick={() => setScreenForm({ ...screenForm, imageUrl: '' })}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border shrink-0 transition-all cursor-pointer ${
+                  !screenForm.imageUrl
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-400'
+                    : 'bg-slate-900 text-slate-400 border-slate-700 hover:bg-slate-800'
+                }`}
+              >
+                🚫 No Picture / Empty (تصویر کے بغیر)
+              </button>
               {PRESET_BACKGROUNDS.map((preset, idx) => (
                 <button
                   key={idx}
@@ -368,16 +379,21 @@ export const PostSplashManager: React.FC<PostSplashManagerProps> = ({
 
             {/* Image Thumbnail Preview */}
             {screenForm.imageUrl && (
-              <div className="relative w-full h-24 rounded-xl overflow-hidden border border-slate-700 mt-2">
+              <div className="relative w-full h-24 rounded-xl overflow-hidden border border-slate-700 mt-2 bg-slate-950 flex items-center justify-center">
+                <img
+                  src={screenForm.imageUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 pointer-events-none"
+                />
                 <img
                   src={screenForm.imageUrl}
                   alt="Preview"
-                  className="w-full h-full object-cover"
+                  className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                 />
                 <button
                   type="button"
                   onClick={() => setScreenForm({ ...screenForm, imageUrl: '' })}
-                  className="absolute top-2 right-2 p-1 bg-slate-950/80 text-rose-400 rounded-lg border border-rose-500/40 hover:bg-rose-950"
+                  className="absolute top-2 right-2 z-20 p-1 bg-slate-950/80 text-rose-400 rounded-lg border border-rose-500/40 hover:bg-rose-950"
                   title="Remove Image"
                 >
                   <X size={14} />
@@ -459,11 +475,16 @@ export const PostSplashManager: React.FC<PostSplashManagerProps> = ({
                     </div>
 
                     {screen.imageUrl && (
-                      <div className="w-16 h-12 rounded-lg overflow-hidden border border-slate-700 shrink-0">
+                      <div className="w-16 h-12 rounded-lg overflow-hidden border border-slate-700 shrink-0 bg-slate-950 flex items-center justify-center relative">
+                        <img
+                          src={screen.imageUrl}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 pointer-events-none"
+                        />
                         <img
                           src={screen.imageUrl}
                           alt={screen.title}
-                          className="w-full h-full object-cover"
+                          className="relative z-10 max-h-full max-w-full object-contain mx-auto"
                         />
                       </div>
                     )}

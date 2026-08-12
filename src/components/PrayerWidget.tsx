@@ -22,8 +22,17 @@ import {
   X, 
   Sparkles,
   Info,
-  TrendingUp
+  TrendingUp,
+  WifiOff
 } from 'lucide-react';
+import { 
+  calculateOfflinePrayerTimes, 
+  getPrayerTimesFromOfflineStorage, 
+  savePrayerTimesToOfflineStorage, 
+  POPULAR_CITIES 
+} from '../lib/offlinePrayerEngine';
+import { adhanAlarmEngine } from '../lib/adhanAlarmEngine';
+import { AdhanSoundSettingsControl } from './AdhanAlarmModal';
 
 export interface PrayerWidgetProps {
   isUr: boolean;
@@ -125,6 +134,20 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [showTrackerDashboard, setShowTrackerDashboard] = useState<boolean>(false);
   const [searchCity, setSearchCity] = useState<string>('');
+  const [isOffline, setIsOffline] = useState<boolean>(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Notification State
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => {
@@ -174,6 +197,7 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
   useEffect(() => {
     let isMounted = true;
     setLoadingTimings(true);
+    const dateKey = new Date().toISOString().split('T')[0];
 
     const fetchTimings = async () => {
       try {
@@ -193,7 +217,7 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
             const rawTimings = data.data.timings;
             const cleanTime = (tStr: string) => tStr.trim().split(' ')[0];
 
-            setTimings({
+            const parsedTimings: PrayerTimings = {
               Fajr: cleanTime(rawTimings.Fajr),
               Sunrise: cleanTime(rawTimings.Sunrise),
               Dhuhr: cleanTime(rawTimings.Dhuhr),
@@ -202,7 +226,10 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
               Isha: cleanTime(rawTimings.Isha),
               Imsak: cleanTime(rawTimings.Imsak || rawTimings.Fajr),
               Midnight: cleanTime(rawTimings.Midnight || '00:00')
-            });
+            };
+
+            setTimings(parsedTimings);
+            savePrayerTimesToOfflineStorage(setting.city, dateKey, parsedTimings);
 
             // Hijri Date Formatting
             if (data.data.date?.hijri) {
@@ -218,13 +245,28 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
           }
         }
       } catch (err) {
-        console.warn('Aladhan API unavailable, using cached/fallback timings', err);
+        console.warn('Aladhan API unavailable, using cached/offline calculated timings', err);
       }
 
       if (isMounted) {
-        setTimings(FALLBACK_PRAYER_TIMES);
-        setHijriDateString('19 Safar 1448 AH');
-        setLocationName(setting.city);
+        // Attempt retrieval from local storage offline cache first
+        const offlineCached = getPrayerTimesFromOfflineStorage(setting.city, dateKey);
+        if (offlineCached) {
+          setTimings(offlineCached);
+        } else {
+          // Calculate solar prayer timings offline
+          const cityData = POPULAR_CITIES[setting.city];
+          const lat = setting.latitude || (cityData ? cityData.lat : 24.8607);
+          const lng = setting.longitude || (cityData ? cityData.lng : 67.0011);
+          const isHanafi = setting.school === 1;
+
+          const calculated = calculateOfflinePrayerTimes(lat, lng, new Date(), isHanafi);
+          setTimings(calculated);
+          savePrayerTimesToOfflineStorage(setting.city, dateKey, calculated);
+        }
+
+        setHijriDateString('27 Safar 1448 AH');
+        setLocationName(setting.city + (isUr ? ' (آف لائن)' : ' (Offline)'));
         setLoadingTimings(false);
       }
     };
@@ -393,6 +435,11 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
         time: upcomingP.time,
         timeDiff: formattedDiffUpcoming
       });
+
+      // Local Notification & Adhan Audio Alarm trigger
+      if (timings && prayerAlerts) {
+        adhanAlarmEngine.checkAndTrigger(timings as any, prayerAlerts, locationName || setting.city);
+      }
     }, 1000);
 
     return () => clearInterval(interval);
@@ -508,6 +555,12 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
             <span className="text-[10px] font-mono bg-emerald-800 text-amber-300 font-bold px-2 py-0.5 rounded-md border border-emerald-600/50">
               {getGmtString()}
             </span>
+            {isOffline && (
+              <span className="text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md flex items-center gap-1 font-bold">
+                <WifiOff size={11} className="text-amber-400" />
+                <span>{isUr ? 'آف لائن کیش' : 'Offline Cache'}</span>
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-emerald-200/90 font-serif flex items-center gap-1.5 flex-wrap">
             <Calendar size={13} className="text-emerald-400 shrink-0" />
@@ -1000,6 +1053,9 @@ export const PrayerWidget: React.FC<PrayerWidgetProps> = ({
                   ))}
                 </div>
               </div>
+
+              {/* Adhan Sound & Audio Alarm Settings */}
+              <AdhanSoundSettingsControl isUr={isUr} />
 
               <div className="pt-2">
                 <button

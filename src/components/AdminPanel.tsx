@@ -43,6 +43,7 @@ import { DEFAULT_VOICE_SETTINGS } from '../lib/voiceReaderEngine';
 import { initialIslamicEvents, initialDuas } from '../data';
 import { BranchMasterManager } from './admin/BranchMasterManager';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { GoogleDriveLinkInput } from './GoogleDriveLinkInput';
 import { DayDatasetsManager } from './admin/DayDatasetsManager';
 import { UserRegistrationManager } from './admin/UserRegistrationManager';
 import { MasterSlipsManager } from './admin/MasterSlipsManager';
@@ -56,7 +57,10 @@ import { BranchPerformanceChart } from './admin/BranchPerformanceChart';
 import { OfflineQueueManager } from './admin/OfflineQueueManager';
 import { ImageCropperModal } from './admin/ImageCropperModal';
 import { VoiceReaderSettingsScreen } from '../screens/admin/VoiceReaderSettingsScreen';
+import { AdhanSchedulerManager } from './admin/AdhanSchedulerManager';
 import { PostSplashManager } from './admin/PostSplashManager';
+import { HeroSliderManager } from './admin/HeroSliderManager';
+import { WysiwygEditor } from './admin/WysiwygEditor';
 import { 
   Plus,
   Tv,
@@ -83,6 +87,7 @@ import {
   Youtube,
   Compass,
   Volume2,
+  Radio,
   Sparkles,
   Menu,
   X,
@@ -227,6 +232,7 @@ interface AdminPanelProps {
   onBulkImportDayRecords?: (records: Omit<DayDatasetRecord, 'id' | 'createdAt'>[]) => void;
 
   onApproveUser?: (userId: string, branchCode: string, role: UserRole) => void;
+  onBulkApproveUsers?: (userIds: string[], assignedRole?: UserRole, assignedBranchId?: string) => void;
   onRejectUser?: (userId: string, reason: string) => void;
   onBlockUser?: (userId: string, reason: string) => void;
   onUnblockUser?: (userId: string) => void;
@@ -297,6 +303,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onDeleteDayRecord = () => {},
   onBulkImportDayRecords = () => {},
   onApproveUser = () => {},
+  onBulkApproveUsers,
   onRejectUser = () => {},
   onBlockUser = () => {},
   onUnblockUser = () => {},
@@ -383,7 +390,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onDeleteSpiritualPersonality = () => {},
   onToggleHideSpiritualPersonality = () => {}
 }) => {
-  const [activeTab, setActiveTab] = useState<'stats' | 'branches' | 'day_datasets' | 'user_management' | 'slips_master' | 'audit_logs' | 'backup_restore' | 'offline_queue' | 'mod_settings' | 'voice_reader' | 'makhzan' | 'spiritual_personalities' | 'posts' | 'categories' | 'pdfs' | 'media' | 'feedback' | 'notifications' | 'settings' | 'donations' | 'info_pages' | 'islamic_utilities' | 'post_splash'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'branches' | 'day_datasets' | 'user_management' | 'slips_master' | 'audit_logs' | 'backup_restore' | 'offline_queue' | 'mod_settings' | 'voice_reader' | 'adhan_scheduler' | 'makhzan' | 'spiritual_personalities' | 'posts' | 'categories' | 'pdfs' | 'media' | 'feedback' | 'notifications' | 'settings' | 'donations' | 'info_pages' | 'islamic_utilities' | 'post_splash'>('stats');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [deleteConfirmState, setDeleteConfirmState] = useState<{ title?: string; message?: string; onConfirm: () => void } | null>(null);
 
@@ -1012,13 +1019,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     {
       category: "Content & Knowledge Base",
       items: [
+        { id: "hero_slider", label: "Hero Slider & Banners (سلائیڈر و بینرز)", icon: ImageIcon },
         { id: "posts", label: "Islamic CMS (Articles)", icon: FileText },
         { id: "categories", label: "CMS Categories", icon: Settings },
         { id: "pdfs", label: "PDF Library", icon: BookOpen },
         { id: "media", label: "Audio & Video Center", icon: Music },
         { id: "info_pages", label: "Information Center", icon: Globe },
         { id: "islamic_utilities", label: "Islamic Suite & Events", icon: Compass },
-{ id: "post_splash", label: "Post-Splash Screen (درود پاک)", icon: Tv },
+        { id: "post_splash", label: "Post-Splash Screen (درود پاک)", icon: Tv },
       ]
     },
     {
@@ -1035,6 +1043,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       items: [
         { id: "mod_settings", label: "Abjad Engine Settings", icon: Sparkles },
         { id: "voice_reader", label: "Voice Reader Settings", icon: Volume2 },
+        { id: "adhan_scheduler", label: "Adhan Audio Scheduler", icon: Radio },
         { id: "offline_queue", label: "Offline Queue", icon: !effectiveOnlineStatus ? WifiOff : Wifi, badge: pendingOfflineItems },
         { id: "audit_logs", label: "Audit Log Ledger", icon: ShieldCheck },
         { id: "backup_restore", label: "Backup & Restore", icon: HardDrive },
@@ -1305,6 +1314,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             appUsers={appUsers}
             branches={branches}
             onApproveUser={onApproveUser}
+            onBulkApproveUsers={onBulkApproveUsers}
             onRejectUser={onRejectUser}
             onBlockUser={onBlockUser}
             onUnblockUser={onUnblockUser}
@@ -1371,6 +1381,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {/* ==================== VOICE READER SETTINGS TAB ==================== */}
         {activeTab === 'voice_reader' && (
           <VoiceReaderSettingsScreen
+            showToast={(msg, type) => showAdminToast(msg, type)}
+          />
+        )}
+
+        {/* ==================== AUTOMATED ADHAN SCHEDULER TAB ==================== */}
+        {activeTab === 'adhan_scheduler' && (
+          <AdhanSchedulerManager
             showToast={(msg, type) => showAdminToast(msg, type)}
           />
         )}
@@ -1488,23 +1505,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Complete Article (English / HTML)</label>
-                  <textarea 
-                    rows={4} 
-                    value={postForm.completeArticle || ''} 
-                    onChange={(e) => setPostForm({ ...postForm, completeArticle: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono" 
+                  <WysiwygEditor
+                    label="Complete Article (English Content & Rich Formatting)"
+                    value={postForm.completeArticle || ''}
+                    onChange={(html) => setPostForm({ ...postForm, completeArticle: html })}
+                    placeholder="Compose complete English article with rich formatting, headings, quotes..."
+                    isUrdu={false}
+                    minHeight="220px"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Complete Article (Urdu / مکمل آرٹیکل)</label>
-                  <textarea 
-                    rows={4} 
-                    value={postForm.completeArticleUrdu || ''} 
-                    onChange={(e) => setPostForm({ ...postForm, completeArticleUrdu: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white text-right font-mono" 
+                  <WysiwygEditor
+                    label="Complete Article (Urdu Content / مکمل مضمون و قرآنی آیات)"
+                    value={postForm.completeArticleUrdu || ''}
+                    onChange={(html) => setPostForm({ ...postForm, completeArticleUrdu: html })}
+                    placeholder="مکمل مضمون، قرآنی آیات اور احادیثِ مبارکہ یہاں تحریر کریں..."
+                    isUrdu={true}
+                    minHeight="220px"
                   />
                 </div>
               </div>
@@ -1539,7 +1558,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <img 
                             src={postForm.coverImage} 
                             alt="Cover Preview" 
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                            className="max-h-full max-w-full object-contain mx-auto" 
                           />
                           <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-3">
                             <button
@@ -1610,12 +1629,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">Associated PDF (Optional URL)</label>
-                        <input 
-                          type="text" 
-                          value={postForm.pdfUrl || ''} 
-                          onChange={(e) => setPostForm({ ...postForm, pdfUrl: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white" 
+                        <GoogleDriveLinkInput
+                          label="Associated PDF (Optional Google Drive / PDF URL)"
+                          placeholder="Paste Google Drive URL or direct PDF link..."
+                          value={postForm.pdfUrl || ''}
+                          onChange={(url) => setPostForm({ ...postForm, pdfUrl: url })}
+                          expectedType="pdf"
                         />
                       </div>
                       <div>
@@ -1798,8 +1817,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       {postForm.images && postForm.images.length > 0 ? (
                         <div className="grid grid-cols-3 gap-2 pt-1">
                           {postForm.images.map((img, idx) => (
-                            <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 group bg-slate-950">
-                              <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
+                            <div key={idx} className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 group bg-slate-950 flex items-center justify-center">
+                              <img src={img} alt={`Gallery ${idx}`} className="max-h-full max-w-full object-contain mx-auto" />
                               <div className="absolute inset-0 bg-slate-950/75 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
                                 <button
                                   type="button"
@@ -2307,11 +2326,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   .map((page) => (
                     <div key={page.id} className="p-3.5 bg-slate-800/40 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <img 
-                          src={page.featuredImage || page.bannerImage || undefined} 
-                          alt={page.title} 
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0" 
-                        />
+                        <div className="w-12 h-12 rounded-xl border border-slate-700 shrink-0 bg-slate-950 flex items-center justify-center overflow-hidden">
+                          <img 
+                            src={page.featuredImage || page.bannerImage || undefined} 
+                            alt={page.title} 
+                            className="max-h-full max-w-full object-contain mx-auto" 
+                          />
+                        </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h5 className="font-bold text-xs text-white">{page.title}</h5>
@@ -2561,13 +2582,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">PDF File URL</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={pdfForm.pdfUrl} 
-                    onChange={(e) => setPdfForm({ ...pdfForm, pdfUrl: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white" 
+                  <GoogleDriveLinkInput
+                    label="PDF File URL / Google Drive Link"
+                    placeholder="Paste Google Drive link or direct PDF URL..."
+                    value={pdfForm.pdfUrl}
+                    onChange={(url) => setPdfForm({ ...pdfForm, pdfUrl: url })}
+                    expectedType="pdf"
+                    required
                   />
                 </div>
               </div>
@@ -3006,7 +3027,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 {albums.map(alb => (
                   <div key={alb.id} className="p-3 bg-slate-800/40 rounded-xl border border-slate-800 flex justify-between items-center gap-3">
                     <div className="flex items-center gap-3">
-                      <img src={alb.coverImage} alt={alb.name} className="w-10 h-10 rounded-lg object-cover border border-slate-700 shrink-0" />
+                      <div className="w-10 h-10 rounded-lg border border-slate-700 shrink-0 bg-slate-950 flex items-center justify-center overflow-hidden">
+                        <img src={alb.coverImage} alt={alb.name} className="max-h-full max-w-full object-contain mx-auto" />
+                      </div>
                       <div>
                         <h5 className="font-bold text-xs">{alb.name} <span className="text-amber-400 text-[10px] font-serif">({alb.nameUrdu})</span></h5>
                         <p className="text-[9px] text-slate-400 uppercase font-mono">Type: {alb.type} | {galleryImages.filter(g => g.albumId === alb.id).length} photos</p>
@@ -3179,7 +3202,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   return (
                     <div key={img.id} className="p-3 bg-slate-800/40 rounded-xl border border-slate-800 flex flex-col justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        <img src={img.imageUrl} alt={img.title} className="w-12 h-12 rounded-lg object-cover border border-slate-700 shrink-0" />
+                        <div className="w-12 h-12 rounded-lg border border-slate-700 shrink-0 bg-slate-950 flex items-center justify-center overflow-hidden">
+                        <img src={img.imageUrl} alt={img.title} className="max-h-full max-w-full object-contain mx-auto" />
+                      </div>
                         <div className="min-w-0">
                           <h5 className="font-bold text-xs truncate">{img.title}</h5>
                           <p className="text-[10px] text-amber-400 font-serif truncate">{img.titleUrdu}</p>
@@ -3889,7 +3914,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         className="bg-slate-900/60 p-4 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between"
                       >
                         <div className="flex gap-3 items-center min-w-0 flex-1">
-                          <img src={init.image || undefined} className="w-14 h-14 rounded-lg object-cover border border-slate-700" alt="" />
+                          <div className="w-14 h-14 rounded-lg border border-slate-700 shrink-0 bg-slate-950 flex items-center justify-center overflow-hidden">
+                            <img src={init.image || undefined} className="max-h-full max-w-full object-contain mx-auto" alt="" />
+                          </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-xs text-slate-200 leading-tight flex items-center gap-1.5">
                               <span>{init.title}</span>
@@ -4359,6 +4386,21 @@ Status: VERIFIED & SECURED (DIGITALLY SIGNED)
             </div>
 
           </div>
+        )}
+
+        {/* Hero Slider & Banners Manager Tab */}
+        {activeTab === 'hero_slider' && (
+          <HeroSliderManager
+            sliderItems={sliderItems}
+            posts={posts}
+            pdfs={pdfs}
+            videos={videos}
+            onAddSliderItem={onAddSliderItem || ((item) => onUpdateSlider([item, ...sliderItems]))}
+            onEditSliderItem={onEditSliderItem || ((item) => onUpdateSlider(sliderItems.map(s => s.id === item.id ? item : s)))}
+            onDeleteSliderItem={onDeleteSliderItem || ((id) => onUpdateSlider(sliderItems.filter(s => s.id !== id)))}
+            onToggleHideSliderItem={onToggleHideSliderItem || ((item) => onUpdateSlider(sliderItems.map(s => s.id === item.id ? { ...item, status: item.status === 'hidden' ? 'published' : 'hidden' } : s)))}
+            onUpdateSlider={onUpdateSlider}
+          />
         )}
 
         {/* Post-Splash Screen / Darood Pak Manager Tab */}

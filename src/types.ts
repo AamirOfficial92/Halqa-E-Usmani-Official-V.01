@@ -60,6 +60,24 @@ export interface Category {
   status?: 'published' | 'draft' | 'hidden';
 }
 
+export interface GoogleDriveResolveResult {
+  success: boolean;
+  isGoogleDrive: boolean;
+  isFolder?: boolean;
+  fileId?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileType?: 'pdf' | 'image' | 'audio' | 'video' | 'doc' | 'folder' | 'unknown';
+  resolvedUrl?: string; // Direct stream or uc download URL
+  previewUrl?: string;  // Embeddable preview URL (e.g., /preview)
+  viewUrl?: string;     // Public viewing URL
+  originalUrl: string;
+  provider: 'google_drive' | 'direct_https' | 'firebase_storage' | 'supabase' | 'other';
+  errorCode?: 'ACCESS_DENIED' | 'FOLDER_NOT_FILE' | 'INVALID_URL' | 'FILE_NOT_FOUND' | 'NOT_A_PDF' | 'NETWORK_ERROR' | 'HTML_RESPONSE' | 'UNKNOWN_ERROR';
+  message?: string;
+  detailsUrdu?: string;
+}
+
 export interface PDFBook {
   id: string;
   title: string;
@@ -68,6 +86,12 @@ export interface PDFBook {
   authorUrdu: string;
   coverImage: string;
   pdfUrl: string;
+  originalUrl?: string;
+  provider?: 'google_drive' | 'direct_https' | 'firebase_storage' | 'supabase' | 'other';
+  fileId?: string;
+  mimeType?: string;
+  fileType?: string;
+  resolvedUrl?: string;
   size: string;
   pages: number;
   description: string;

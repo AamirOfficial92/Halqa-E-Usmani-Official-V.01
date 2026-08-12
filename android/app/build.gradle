@@ -25,8 +25,12 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            v1SigningEnabled true
+            v2SigningEnabled true
         }
         debug {
+            v1SigningEnabled true
+            v2SigningEnabled true
         }
     }
     packagingOptions {

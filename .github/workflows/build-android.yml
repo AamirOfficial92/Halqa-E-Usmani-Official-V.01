@@ -1,51 +1,87 @@
 name: Build Android APK
 
+# Ye workflow kab chalegi:
+# 1) Jab bhi "main" branch par naya code push ho.
+# 2) Jab bhi GitHub Actions tab se "Run workflow" button manually dabaya jaye.
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch: {}
 
 jobs:
   build:
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      # Capacitor CLI ko Node.js 22+ chahiye
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
 
-      - name: Install web dependencies
-        run: npm install
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-      - name: Build web app (Vite)
-        run: npx vite build
+      - name: Install dependencies
+        run: bun install
+
+      # .env file GitHub Secrets se banana (Firebase/Gemini keys)
+      - name: Create .env file
+        run: |
+          cat <<EOF > .env.local
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          APP_URL=${{ secrets.APP_URL }}
+          VITE_FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}
+          EOF
+
+      # Mobile-only bundle -> "dist" folder. Admin Panel code is excluded
+      # entirely from this build (see Section 23 of the project document).
+      - name: Build web app (mobile-only bundle)
+        run: bun run build:mobile
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
 
-      - name: Set up JDK 21
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: "temurin"
+          java-version: "21"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # FIX: repo mein commit shuda gradle-wrapper.jar corrupt ho chuki hai
+      # (Windows par binary file upload hote waqt Git ne bytes badal diye
+      # thay). Isliye local wrapper jar par bharosa karne ke bajaye, is step
+      # mein ek proper Gradle install use karke wrapper files (jar samet)
+      # dobara sahi generate ki jati hain — gradle-wrapper.properties mein
+      # jo version pehle se likha hai, wahi version use hoga.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Regenerate corrupted gradle-wrapper.jar
+        working-directory: android
+        run: gradle wrapper
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
+      - name: Build Debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: halqa-e-usmania-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
